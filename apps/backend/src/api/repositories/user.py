@@ -1,0 +1,63 @@
+from collections.abc import Sequence
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.models.user import User
+from api.repositories.base import BaseRepository
+
+
+class UserRepository(BaseRepository[User]):
+    """Repository handling database operations for the User model."""
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(User, session)
+
+    async def get_by_username(self, username: str) -> User | None:
+        stmt = select(User).where(User.username == username)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_email(self, email: str) -> User | None:
+        stmt = select(User).where(User.email == email)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def search_with_count(
+        self,
+        q: str | None = None,
+        role: str | None = None,
+        is_active: bool | None = None,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> tuple[Sequence[User], int]:
+        """Search users with filtering by keyword, role, status, and pagination."""
+        # 1. Build Count Query
+        count_stmt = select(func.count(User.id))
+        if q:
+            search_filter = or_(
+                User.username.ilike(f"%{q}%"),
+                User.email.ilike(f"%{q}%"),
+                User.full_name.ilike(f"%{q}%"),
+            )
+            count_stmt = count_stmt.where(search_filter)
+        if role:
+            count_stmt = count_stmt.where(User.role == role)
+        if is_active is not None:
+            count_stmt = count_stmt.where(User.is_active == is_active)
+
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar_one()
+
+        # 2. Build Data Query
+        data_stmt = select(User).offset(skip).limit(limit).order_by(User.id.desc())
+        if q:
+            data_stmt = data_stmt.where(search_filter)
+        if role:
+            data_stmt = data_stmt.where(User.role == role)
+        if is_active is not None:
+            data_stmt = data_stmt.where(User.is_active == is_active)
+
+        data_result = await self.session.execute(data_stmt)
+        users = data_result.scalars().all()
+
+        return users, total
