@@ -1,0 +1,61 @@
+from datetime import datetime
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
+
+from api.schemas.category import CategoryResponse
+
+DocumentStatus = Literal["pending", "processing", "indexed", "failed"]
+
+
+class DocumentChunkResponse(BaseModel):
+    id: str = Field(..., description="UUID point ID matching Qdrant Point ID")
+    document_id: int
+    chunk_index: int
+    content: str
+    page_number: int
+    token_count: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentBase(BaseModel):
+    title: str = Field(..., min_length=2, max_length=255, examples=["Academic Regulations 2026"])
+    category_id: int | None = Field(default=None, description="Target category identifier")
+
+
+class DocumentCreate(DocumentBase):
+    pass
+
+
+class DocumentUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=2, max_length=255)
+    category_id: int | None = Field(default=None)
+
+
+class DocumentResponse(DocumentBase):
+    id: int
+    file_name: str
+    file_path: str
+    file_size: int
+    file_type: str
+    file_hash: str
+    status: DocumentStatus
+    uploader_id: int | None
+    total_pages: int
+    chunk_count: int
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+    category: CategoryResponse | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentDetailResponse(DocumentResponse):
+    chunks: list[DocumentChunkResponse] = Field(default_factory=list)
+
+
+class DocumentUploadResponse(BaseModel):
+    document: DocumentResponse
+    message: str = Field(default="Document uploaded and queued for processing.")

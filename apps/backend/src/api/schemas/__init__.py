@@ -1,4 +1,28 @@
+from api.schemas.category import (
+    CategoryBase,
+    CategoryCreate,
+    CategoryResponse,
+    CategoryUpdate,
+)
 from api.schemas.common import BaseResponse, PaginatedData, PaginationMeta
+from api.schemas.document import (
+    DocumentBase,
+    DocumentChunkResponse,
+    DocumentCreate,
+    DocumentDetailResponse,
+    DocumentResponse,
+    DocumentStatus,
+    DocumentUpdate,
+    DocumentUploadResponse,
+)
+from api.schemas.rag import (
+    CitationSource,
+    RAGQueryRequest,
+    RAGQueryResponse,
+    SearchRequest,
+    SearchResponse,
+    SearchResultItem,
+)
 from api.schemas.user import (
     AdminUserCreate,
     ChangePasswordRequest,
@@ -14,9 +38,27 @@ from api.schemas.user import (
 __all__ = [
     "AdminUserCreate",
     "BaseResponse",
+    "CategoryBase",
+    "CategoryCreate",
+    "CategoryResponse",
+    "CategoryUpdate",
     "ChangePasswordRequest",
+    "CitationSource",
+    "DocumentBase",
+    "DocumentChunkResponse",
+    "DocumentCreate",
+    "DocumentDetailResponse",
+    "DocumentResponse",
+    "DocumentStatus",
+    "DocumentUpdate",
+    "DocumentUploadResponse",
     "PaginatedData",
     "PaginationMeta",
+    "RAGQueryRequest",
+    "RAGQueryResponse",
+    "SearchRequest",
+    "SearchResponse",
+    "SearchResultItem",
     "TokenResponse",
     "UserCreate",
     "UserLogin",

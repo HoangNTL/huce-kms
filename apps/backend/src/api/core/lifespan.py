@@ -51,6 +51,23 @@ async def seed_initial_data() -> None:
             session.add(default_user)
             logger.info("[SEEDER] Created demo user account: 'user' / 'UserPassword2026@'")
 
+        # 3. Seed Default Academic Categories
+        from api.models.category import Category
+        initial_categories = [
+            ("Quy chế đào tạo", "quy-che-dao-tao", "Các quy chế, quy định chung về đào tạo đại học và sau đại học"),
+            ("Đồ án tốt nghiệp", "do-an-tot-nghiep", "Hướng dẫn, quy trình giao và bảo vệ đồ án tốt nghiệp"),
+            ("Học bổng & Khen thưởng", "hoc-bong-khen-thuong", "Tiêu chuẩn xét cấp học bổng khuyến khích và khen thưởng"),
+            ("Học phí & Tài chính", "hoc-phi-tai-chinh", "Quy định mức thu học phí, miễn giảm học phí và hỗ trợ chi phí"),
+            ("Công tác sinh viên", "cong-tac-sinh-vien", "Sổ tay sinh viên, chế độ chính sách và hoạt động phong trào"),
+            ("Khác", "khac", "Các văn bản hướng dẫn và thông báo chung khác"),
+        ]
+        for name, slug, desc in initial_categories:
+            cat_stmt = select(Category).where(Category.slug == slug).limit(1)
+            cat_res = await session.execute(cat_stmt)
+            if not cat_res.scalar_one_or_none():
+                session.add(Category(name=name, slug=slug, description=desc))
+                logger.info(f"[SEEDER] Created default category: '{name}'")
+
         await session.commit()
 
 

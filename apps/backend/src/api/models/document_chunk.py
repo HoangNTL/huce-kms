@@ -1,0 +1,38 @@
+from typing import TYPE_CHECKING
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from api.core.database import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from api.models.document import Document
+
+
+class DocumentChunk(Base, TimestampMixin):
+    """Text chunk extracted from a source document, indexed in both PostgreSQL and Qdrant."""
+
+    __tablename__ = "document_chunks"
+
+    # UUID string uniquely identifying the chunk, matching Qdrant Point ID 1-to-1
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, index=True)
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    page_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Relationships
+    document: Mapped["Document"] = relationship(back_populates="chunks")
+
+    __table_args__ = (
+        UniqueConstraint("document_id", "chunk_index", name="uq_document_chunk_index"),
+        Index("ix_document_chunks_doc_page", "document_id", "page_number"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<DocumentChunk id='{self.id}' doc_id={self.document_id} idx={self.chunk_index} p={self.page_number}>"

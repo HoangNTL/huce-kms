@@ -27,24 +27,27 @@ def setup_logging() -> None:
     console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
 
-    # 2. Rotating File Handler (Max 10MB per file, keep 5 backups)
-    file_handler = logging.handlers.RotatingFileHandler(
-        filename=log_file_path,
-        maxBytes=10 * 1024 * 1024,  # 10 MB
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-
     # Configure Root Logger
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
-
-    # Clear pre-existing handlers to prevent duplicate log records
     root_logger.handlers.clear()
     root_logger.addHandler(console_handler)
-    root_logger.addHandler(file_handler)
+
+    # 2. Rotating File Handler (Max 10MB per file, keep 5 backups)
+    try:
+        file_handler = logging.handlers.RotatingFileHandler(
+            filename=log_file_path,
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding="utf-8",
+            delay=True,
+        )
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+    except (PermissionError, OSError):
+        # Fallback to console handler if file is locked by another process on Windows
+        pass
 
     # Suppress verbose logs from third-party libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

@@ -28,7 +28,7 @@ This document standardizes technical naming conventions across the HUCE-KMS back
 | **FastAPI Dependency Aliases**| `PascalCase` + `Dep` | Verified | `DatabaseDep`, `CurrentUserDep`, `AdminUserDep`, `UserServiceDep` | `DocumentServiceDep`, `CategoryServiceDep` |
 | **Functions & Methods** | `snake_case` | Verified | `get_by_username`, `create_user_by_admin`, `revoke_all_for_user` | `process_document`, `extract_text` |
 | **Variables & Attributes** | `snake_case` | Verified | `access_token`, `current_user`, `is_healthy` | `document_id`, `total_chunks` |
-| **Constants** | `UPPER_SNAKE_CASE` | Verified | `BACKEND_DIR`, `DEFAULT_DB_PATH`, `MOCK_USERS_BY_TOKEN` | `MAX_FILE_SIZE_BYTES`, `ALLOWED_EXTENSIONS` |
+| **Constants** | `UPPER_SNAKE_CASE` | Verified | `BACKEND_DIR`, `DATABASE_URL`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `MAX_FILE_SIZE_BYTES`, `ALLOWED_EXTENSIONS` |
 | **Type Aliases & TypeVars** | `PascalCase` | Verified | `DataType`, `ModelType`, `UserRole` | `DocumentStatus`, `QueryFilter` |
 | **Enum Members** | `UPPER_SNAKE_CASE` | Recommendation | Currently string literals `"user"`, `"admin"` | `USER = "user"`, `ADMIN = "admin"` |
 | **Test Files (Future)** | `test_<module>.py` | Recommendation | No tests currently exist | `test_auth.py`, `test_users.py` |

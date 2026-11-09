@@ -161,7 +161,8 @@ def anyio_backend():
 
 @pytest.fixture(scope="function")
 async def db_session():
-    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    test_db_url = settings.DATABASE_URL.replace("/huce_kms", "/huce_kms_test")
+    test_engine = create_async_engine(test_db_url)
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -293,7 +294,7 @@ def mock_embedding_service(monkeypatch):
 **Incorrect Example:**
 ```python
 # Mocking user_repo.create() to return a fake object in API integration tests:
-# Leaves actual SQL queries untested against SQLite/PostgreSQL!
+# Leaves actual SQL queries untested against PostgreSQL!
 ```
 **Exceptions:** Pure unit tests executing isolated functions with zero I/O.  
 **Source:** Best practices in automated testing architecture.

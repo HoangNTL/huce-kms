@@ -33,15 +33,23 @@ class Settings(BaseSettings):
     QDRANT_PORT: int = 6333
     QDRANT_GRPC_PORT: int = 6334
     QDRANT_API_KEY: str | None = None
+    QDRANT_COLLECTION_NAME: str = "huce_kms_documents"
 
     # AI / LLM & Embedding Configuration (Google Gemini)
     LLM_PROVIDER: str = "gemini"
-    LLM_MODEL: str = "gemini-2.5-flash"
+    LLM_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_API_KEY: str | None = None
 
     EMBEDDING_PROVIDER: str = "gemini"
-    EMBEDDING_MODEL_NAME: str = "text-embedding-004"
+    EMBEDDING_MODEL_NAME: str = "gemini-embedding-001"
     VECTOR_DIMENSION: int = 768
+
+    # Document Upload & Ingestion Configuration
+    UPLOAD_DIR: Path = BACKEND_DIR / "uploads"
+    MAX_UPLOAD_SIZE_MB: int = 50
+    ALLOWED_DOCUMENT_EXTENSIONS: list[str] = [".pdf", ".txt", ".md"]
+    CHUNK_SIZE: int = 800
+    CHUNK_OVERLAP: int = 150
 
     # JWT & Security Configuration
     SECRET_KEY: str = "huce-kms-super-secret-key-change-in-production-2026"
@@ -65,8 +73,17 @@ class Settings(BaseSettings):
             return value.strip().lower() in ("true", "1", "yes", "on", "debug")
         return bool(value)
 
+    @field_validator("GEMINI_API_KEY", "QDRANT_API_KEY", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value: Any) -> str | None:
+        """Sanitize optional API keys: strip quotes/whitespace and treat empty strings as None."""
+        if isinstance(value, str):
+            val = value.strip().strip("'\"")
+            return val or None
+        return value
+
     model_config = SettingsConfigDict(
-        env_file=(".env", str(BACKEND_DIR.parent.parent / ".env")),
+        env_file=(str(BACKEND_DIR.parent.parent / ".env"), str(BACKEND_DIR / ".env")),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
