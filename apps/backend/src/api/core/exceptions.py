@@ -9,9 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 logger = logging.getLogger(__name__)
 
 
-# -----------------------------------------------------------------------------
-# 1. Base Exception & Concrete Domain Exceptions
-# -----------------------------------------------------------------------------
+# Base Exception & Concrete Domain Exceptions
 class AppException(Exception):
     """Base application exception for all domain and HTTP errors."""
 
@@ -126,9 +124,7 @@ class ConflictException(AppException):
         )
 
 
-# -----------------------------------------------------------------------------
-# 2. Standardized Error Response Formatter
-# -----------------------------------------------------------------------------
+# Standardized Error Response Formatter
 def format_error_response(
     status_code: int,
     error_code: str,
@@ -147,9 +143,7 @@ def format_error_response(
     return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
-# -----------------------------------------------------------------------------
-# 3. Global Exception Handlers
-# -----------------------------------------------------------------------------
+# Global Exception Handlers
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Handle all application-specific exceptions derived from AppException."""
     if exc.status_code >= 500:
@@ -234,9 +228,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
-# -----------------------------------------------------------------------------
-# 4. Register Exception Handlers on FastAPI app
-# -----------------------------------------------------------------------------
+# Register Exception Handlers on FastAPI app
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all global exception handlers onto FastAPI instance."""
     app.add_exception_handler(AppException, app_exception_handler)

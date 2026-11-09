@@ -12,9 +12,7 @@ from api.services.auth import AuthService
 router = APIRouter()
 
 
-# -----------------------------------------------------------------------------
 # Dependency Factory & Cookie Helpers
-# -----------------------------------------------------------------------------
 def get_auth_service(db: DatabaseDep) -> AuthService:
     user_repo = UserRepository(db)
     refresh_token_repo = RefreshTokenRepository(db)
@@ -45,9 +43,7 @@ def clear_refresh_token_cookie(response: Response) -> None:
     )
 
 
-# -----------------------------------------------------------------------------
 # Authentication Endpoints
-# -----------------------------------------------------------------------------
 @router.post(
     "/register",
     response_model=BaseResponse[UserResponse],

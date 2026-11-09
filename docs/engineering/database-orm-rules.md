@@ -10,7 +10,7 @@
 
 ## 1. Database Layer Architecture Overview
 
-HUCE-KMS utilizes **SQLAlchemy 2.0** with asynchronous architecture (`asyncio`), pairing the `aiosqlite` driver in the local development environment while maintaining full compatibility with `postgresql+asyncpg` for future production deployment.
+HUCE-KMS utilizes **SQLAlchemy 2.0** with asynchronous architecture (`asyncio`), powered natively by the `asyncpg` driver connecting to **PostgreSQL 16** (via Docker container `huce-kms-postgres` on port 5432).
 
 Core database architectural components:
 1. **Async Engine & Sessionmaker**: Initialized centrally in `api/core/database.py`.
@@ -289,26 +289,24 @@ async def create(self, instance: ModelType) -> ModelType:
 ---
 
 ### Rule ID: DB-009
-**Title:** SQLite Development Environment Considerations  
-**Priority:** SHOULD  
-**Rule:** During active development with SQLite (`huce_kms.db`), developers **SHOULD** observe:
-1. SQLite locks the entire database file during write operations (`database is locked`). Avoid long-running transactions when performing external API calls or heavy CPU processing.
-2. Do NOT use PostgreSQL-exclusive features (such as `ARRAY`, `JSONB`, or unaccented case-insensitive regex).
-3. The database URL MUST always resolve using an absolute filesystem path (`DEFAULT_DB_PATH` in `api/core/config.py`) to prevent creating orphaned database files when running CLI commands from different working directories.  
-**Reason:** Prevents hidden bugs when switching environments between local development, testing, and migration execution.  
+**Title:** PostgreSQL Connection & Docker Environment Management  
+**Priority:** MUST  
+**Rule:** During development and deployment, developers **MUST** observe:
+1. The database connection MUST use the asynchronous driver `postgresql+asyncpg://`. Synchronous drivers (`psycopg2`) are strictly forbidden.
+2. Connection configuration is loaded from `.env` via `settings.DATABASE_URL`.
+3. PostgreSQL runs inside Docker container `huce-kms-postgres` defined in the root `docker-compose.yml`. SQLite is deprecated and deleted.  
+**Reason:** Ensures consistent relational database behavior between local development, staging, and production environments, eliminating dialect discrepancies.  
 **Correct Example:**
 ```python
 # api/core/config.py
-BACKEND_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DEFAULT_DB_PATH = (BACKEND_DIR / "huce_kms.db").as_posix()
-DATABASE_URL: str = f"sqlite+aiosqlite:///{DEFAULT_DB_PATH}"
+DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/huce_kms"
 ```
 **Incorrect Example:**
 ```python
-DATABASE_URL: str = "sqlite+aiosqlite:///huce_kms.db" # Relative path generates disparate database files
+DATABASE_URL: str = "sqlite+aiosqlite:///huce_kms.db" # Deprecated legacy SQLite
 ```
-**Exceptions:** When production PostgreSQL connection strings are configured.  
-**Source:** `apps/backend/src/api/core/config.py:6-8, 32`.
+**Exceptions:** None.  
+**Source:** `apps/backend/src/api/core/config.py:32`, `docker-compose.yml`.
 
 ---
 

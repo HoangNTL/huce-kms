@@ -9,7 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
-# Database & Logs
-*.db
-*.sqlite3
+# Logs
 logs/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+

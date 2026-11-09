@@ -18,9 +18,7 @@ from api.services.user import UserService
 router = APIRouter()
 
 
-# -----------------------------------------------------------------------------
 # Dependency Factory: Inject UserService into route handlers
-# -----------------------------------------------------------------------------
 def get_user_service(db: DatabaseDep) -> UserService:
     user_repo = UserRepository(db)
     refresh_token_repo = RefreshTokenRepository(db)
@@ -30,9 +28,7 @@ def get_user_service(db: DatabaseDep) -> UserService:
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 
 
-# -----------------------------------------------------------------------------
 # User Management Endpoints
-# -----------------------------------------------------------------------------
 @router.post(
     "/",
     response_model=BaseResponse[UserResponse],

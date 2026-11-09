@@ -16,9 +16,10 @@ The backend is built following an asynchronous (Async/Await throughout) **Layere
 
 > [!IMPORTANT]
 > **Active Database & Technology Reality**:
-> - In the current development environment, the database is **SQLite (`huce_kms.db`) via SQLAlchemy 2.0 Async Engine with `aiosqlite`**.
-> - Upgrading to **PostgreSQL** and **Qdrant Vector Database** represents future planned architectural targets (scheduled for Document Ingestion & RAG Pipeline phases).
-> - AI Agents **MUST NOT** import `asyncpg`, `psycopg`, or `qdrant_client` as these libraries are not installed in `pyproject.toml`.
+> - The active database is **PostgreSQL 16 (via Docker container `huce-kms-postgres`)** connected via SQLAlchemy 2.0 Async Engine with **`asyncpg >= 0.32.0`**.
+> - The vector database is **Qdrant Vector Database (via Docker container `huce-kms-qdrant`)** running on ports 6333 (REST/Dashboard) and 6334 (gRPC).
+> - SQLite (`huce_kms.db`) and `aiosqlite` have been completely removed from the project.
+> - AI Agents **MUST** execute all relational queries via `postgresql+asyncpg`.
 
 ---
 
@@ -29,6 +30,7 @@ Backend source code resides in `src/` with the package root named `api` (declare
 ```text
 apps/backend/
 ├── migrations/               # Alembic configuration & migration scripts
+│   ├── versions/             # Migration version scripts (b6a68b3c5883_initial_schema.py)
 │   ├── env.py                # Async migration runner bound to target_metadata = Base.metadata
 │   └── script.py.mako        # Migration template file
 ├── src/
@@ -42,7 +44,6 @@ apps/backend/
 │       │   └── routes/       # API Route Controllers (auth, users, router.py)
 │       └── main.py           # FastAPI Application Entry Point & Lifespan handler
 ├── alembic.ini               # Alembic configuration file
-├── huce_kms.db               # Local development SQLite database file
 ├── pyproject.toml            # Project metadata, build configuration, and dependencies
 └── uv.lock                   # Exact locked versions of installed packages
 ```
@@ -190,15 +191,15 @@ When creating a new domain entity (e.g., Documents, Categories, Chat Conversatio
 
 The project uses a locked and verified package suite in `pyproject.toml` / `uv.lock`:
 - Web framework: `fastapi[standard] >= 0.162.2`
-- Database: `sqlalchemy[asyncio] >= 2.0`, `aiosqlite >= 0.20.0`, `alembic >= 1.13.0`
+- Database: `sqlalchemy[asyncio] >= 2.0`, `asyncpg >= 0.32.0`, `alembic >= 1.13.0`
 - Security & Auth: `pwdlib[argon2] >= 0.2.1`, `pyjwt >= 2.9.0`
 - Settings: `pydantic-settings`
 
 > [!NOTE]
-> **Alembic Migrations**: Currently, the local SQLite database schema is initialized on startup in lifespan (`lifespan.py`). When official schema changes are required, generate migration scripts using `uv run alembic revision --autogenerate -m "<message>"`.
+> **Alembic Migrations**: The schema baseline is tracked in `migrations/versions/b6a68b3c5883_initial_schema.py` and stamped `head`. When official schema changes are required, generate migration scripts using `uv run alembic revision --autogenerate -m "<message>"`.
 
 > [!WARNING]
-> Do NOT install unapproved external dependencies (such as passlib, python-jose, tortoise-orm, pydantic v1, asyncpg, or qdrant-client) without explicit approval. When package changes are required, use `uv add <package>` from `apps/backend`.
+> Do NOT install unapproved external dependencies (such as passlib, python-jose, tortoise-orm, or pydantic v1) without explicit approval. When package changes are required, use `uv add <package>` from `apps/backend`.
 
 ---
 

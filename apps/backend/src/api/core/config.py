@@ -4,7 +4,6 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DEFAULT_DB_PATH = (BACKEND_DIR / "huce_kms.db").as_posix()
 
 
 class Settings(BaseSettings):
@@ -21,21 +20,34 @@ class Settings(BaseSettings):
     # CORS Configuration
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
-        "http://localhost:5173",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
     ]
 
-    # Database Configuration (Defaults to absolute path of backend/huce_kms.db)
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{DEFAULT_DB_PATH}"
+    # Database Configuration (Docker PostgreSQL by default)
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/huce_kms"
+
+    # Qdrant Vector DB Configuration
+    QDRANT_HOST: str = "localhost"
+    QDRANT_PORT: int = 6333
+    QDRANT_GRPC_PORT: int = 6334
+    QDRANT_API_KEY: str | None = None
+
+    # AI / LLM & Embedding Configuration (Google Gemini)
+    LLM_PROVIDER: str = "gemini"
+    LLM_MODEL: str = "gemini-2.5-flash"
+    GEMINI_API_KEY: str | None = None
+
+    EMBEDDING_PROVIDER: str = "gemini"
+    EMBEDDING_MODEL_NAME: str = "text-embedding-004"
+    VECTOR_DIMENSION: int = 768
 
     # JWT & Security Configuration
     SECRET_KEY: str = "huce-kms-super-secret-key-change-in-production-2026"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes for access token
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 days for refresh token
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # 15 minutes access token (OWASP standard)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 days refresh token
 
     # Refresh Token Cookie Configuration
     REFRESH_COOKIE_NAME: str = "refresh_token"
@@ -54,7 +66,7 @@ class Settings(BaseSettings):
         return bool(value)
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", str(BACKEND_DIR.parent.parent / ".env")),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",

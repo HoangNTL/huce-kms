@@ -28,7 +28,7 @@ The backend information security ecosystem rests on 4 core pillars:
 **Rule:** The HUCE-KMS authentication ecosystem **MUST** adhere to a dual-token model:
 1. **Access Token**:
    - Digitally signed Bearer JWT using algorithm HS256.
-   - Maximum lifetime: 30 minutes (`settings.ACCESS_TOKEN_EXPIRE_MINUTES = 30`).
+   - Maximum lifetime: 15 minutes (`settings.ACCESS_TOKEN_EXPIRE_MINUTES = 15`, OWASP standard).
    - Contains minimal claims: `sub` (username), `id` (user_id), `role`, `type: "access"`.
    - Returned in the JSON payload for client in-memory storage and attached via `Authorization: Bearer <token>` headers.
 2. **Refresh Token**:

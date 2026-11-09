@@ -29,7 +29,7 @@ All components in the table below have been verified directly from `pyproject.to
 | **Web Framework** | FastAPI (standard) | `>= 0.162` | HTTP routing, automated OpenAPI/Swagger generation, async request processing |
 | **ASGI Server** | Uvicorn | Bundled | High-performance asynchronous ASGI web server |
 | **ORM / Data Access** | SQLAlchemy (asyncio) | `>= 2.0` | Modern 2.0 ORM, non-blocking queries using `select()` and `Mapped` |
-| **Database Driver** | aiosqlite | `>= 0.20` | Async SQLite driver powering local development (`huce_kms.db`) |
+| **Database Driver** | asyncpg | `>= 0.32` | High-performance asynchronous PostgreSQL driver powering persistence |
 | **Schema & Validation** | Pydantic V2 & Settings | `>= 2.10` | Input/output DTOs, data serialization, and `.env` settings management |
 | **Hashing & Auth** | pwdlib (Argon2id) | `>= 0.2.1` | OWASP-compliant password hashing using Argon2id |
 | **JWT** | PyJWT | `>= 2.9.0` | Generation and verification of HS256 JSON Web Tokens |
@@ -130,8 +130,11 @@ apps/backend/
 │       │       └── __init__.py
 │       ├── main.py                       # Application Entry Point & bootstrap
 │       └── __init__.py
+├── migrations/
+│   ├── versions/                         # Migration versions (b6a68b3c5883_initial_schema.py)
+│   ├── env.py                            # Async migration runner
+│   └── script.py.mako
 ├── alembic.ini                           # Alembic configuration file
-├── huce_kms.db                           # Local SQLite database file
 ├── pyproject.toml                        # Project metadata, build system & dependencies
 └── uv.lock                               # Exact dependency lockfile
 ```
@@ -204,7 +207,7 @@ sequenceDiagram
     participant DBDep as DatabaseDep (get_db_session)
     participant Service as Domain Service
     participant Repo as Domain Repository
-    participant DB as SQLite / PostgreSQL
+    participant DB as PostgreSQL (Docker)
 
     Client->>MW: HTTP Request (Method, Path, Headers, Body)
     Note over MW: Generate X-Request-ID<br/>Start timer
@@ -307,7 +310,7 @@ HUCE-KMS implements a secure **Dual-Token Authentication** mechanism:
 
 1. **Access Token (Short-lived)**:
    - Bearer JWT (signed with HS256).
-   - Lifetime: 30 minutes (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+   - Lifetime: 15 minutes (`ACCESS_TOKEN_EXPIRE_MINUTES`, OWASP standard).
    - Claims: `sub` (username), `id` (user_id), `role` (user role), `type`: `"access"`.
    - Returned in JSON payload for client in-memory storage or `Authorization` headers.
 2. **Refresh Token (Long-lived & Multi-device Security)**:
@@ -325,9 +328,9 @@ HUCE-KMS implements a secure **Dual-Token Authentication** mechanism:
 ## 12. Lifecycle & Configuration Management
 
 ### 12.1. Configuration (`api.core.config.Settings`)
-- Settings load from environment variables or a local `.env` file.
+- Settings load from environment variables or a local `.env` file (with monorepo root fallback).
 - Automatic validator normalizes string values to boolean for `DEBUG`.
-- Default database URL uses an absolute filesystem path pointing to `apps/backend/huce_kms.db`.
+- Default database URL connects to Docker PostgreSQL (`postgresql+asyncpg://postgres:postgres@localhost:5432/huce_kms`).
 
 ### 12.2. Application Lifespan (`api.core.lifespan.lifespan`)
 ```mermaid
@@ -355,10 +358,10 @@ flowchart LR
 
 ---
 
-## 13. Existing Limitations
+## 13. Existing Limitations & Resolved Milestones
 
-1. **SQLite Concurrency**: SQLite is appropriate for local single-developer workflows. Under concurrent write workloads, SQLite may encounter table lock contention.
-2. **Alembic Migrations Operationalization**: Alembic is configured in `alembic.ini` and `migrations/env.py`, but `migrations/versions/` currently contains no migration files. Schema creation currently relies on `Base.metadata.create_all` at startup.
+1. **Database Migration to PostgreSQL (Resolved)**: Transitioned from `sqlite+aiosqlite` to `postgresql+asyncpg` using Docker container `huce-kms-postgres`.
+2. **Alembic Migrations Operationalization (Resolved)**: Initial baseline migration (`b6a68b3c5883_initial_schema.py`) created and stamped `head` in PostgreSQL.
 3. **Mock Tokens in DEBUG Mode**: Test bypass tokens (`MOCK_USERS_BY_TOKEN`) reside directly in `api/core/dependencies.py`. In production environments, `DEBUG` MUST be set to `False` to prevent unauthorized authentication bypass.
 4. **Default CORS Origins**: Permitted CORS origins currently default to local development ports (`localhost:3000`, `localhost:5173`, etc.).
 
@@ -366,7 +369,5 @@ flowchart LR
 
 ## 14. Future Considerations
 
-1. **PostgreSQL Migration**: Transition from `sqlite+aiosqlite` to `postgresql+asyncpg` in production environments.
-2. **Formalizing Alembic Migrations**: Transition from startup `create_all` to automated Alembic migration pipelines in CI/CD.
-3. **Redis Caching & Token Blacklist**: Incorporate Redis for distributed session caching, token blacklisting, and API rate limiting.
-4. **Vector Database & RAG Pipeline Integration**: Extend the Service Layer to interface with a Vector Database (Qdrant / pgvector) and an LLM Orchestrator to support Hanoi University of Civil Engineering knowledge retrieval.
+1. **Redis Caching & Token Blacklist**: Incorporate Redis for distributed session caching, token blacklisting, and API rate limiting.
+2. **Vector Database & RAG Pipeline Integration**: Extend the Service Layer to interface with Qdrant Vector Database (active on port 6333) and Google Gemini LLM / Embedding API to support Hanoi University of Civil Engineering knowledge retrieval.

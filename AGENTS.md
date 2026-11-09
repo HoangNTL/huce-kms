@@ -16,13 +16,15 @@ The repository is structured as an **isolated monorepo** with independent Fronte
 ```text
 huce-kms/
 ├── apps/
-│   ├── backend/          # Backend API (Python 3.12, FastAPI, SQLAlchemy 2.0 Async, SQLite/Alembic)
+│   ├── backend/          # Backend API (Python 3.12, FastAPI, SQLAlchemy 2.0 Async, PostgreSQL/Alembic)
 │   └── web/              # Frontend Web (Next.js 16 App Router, React 19, Tailwind CSS v4, Base UI)
 ├── docs/
 │   ├── architecture/     # Detailed technical system architecture
 │   ├── engineering/      # Engineering standards, Coding Standards, Naming Conventions
 │   ├── frontend/         # Frontend architecture, implementation plans, and conventions
 │   └── project-analysis/ # System audit reports and AI Guide migration records
+├── docker-compose.yml    # Docker Compose for PostgreSQL 16 & Qdrant Vector DB
+├── .env.example          # Environment configuration template
 ├── AGENTS.md             # This document (Global Agent Entry Point)
 └── README.md             # Root-level project introduction
 ```
@@ -35,9 +37,9 @@ To prevent AI Agents from hallucinating uninstalled packages or unsupported arch
 
 | Component | Active Runtime Reality | Future Planned Targets (Not Installed) | Mandatory Rule for AI Agents |
 | :--- | :--- | :--- | :--- |
-| **Database** | **SQLite (`huce_kms.db`)** via `aiosqlite` | **PostgreSQL** (no `asyncpg` or `psycopg` drivers installed) | **DO NOT** attempt to connect to PostgreSQL or import PostgreSQL drivers. All queries MUST execute via SQLAlchemy 2.0 Async with SQLite. |
-| **Vector DB / RAG** | Not installed; Frontend displays simulated SSE streaming | **Qdrant Vector Database**, Ragas | **DO NOT** `import qdrant_client` or invoke vector search until explicitly directed and dependencies are added to `pyproject.toml`. |
-| **Backend Core** | FastAPI, Python 3.12, Pydantic V2, Pwdlib (Argon2id), PyJWT | Celery / Redis background workers | Strictly adhere to the layered architecture in `apps/backend/src/api/`. |
+| **Database** | **PostgreSQL 16** via `asyncpg` (Docker container `huce-kms-postgres`) | Connection pooling tuning | All queries MUST execute via SQLAlchemy 2.0 Async with `postgresql+asyncpg`. SQLite is deprecated and removed. |
+| **Vector DB** | **Qdrant Vector DB** (Docker container `huce-kms-qdrant` on 6333/6334) | Vector collections & ingestion | Qdrant service is active. Use `qdrant-client` when implementing vector indexing. |
+| **Backend Core** | FastAPI, Python 3.12, Pydantic V2, Pwdlib (Argon2id), PyJWT, Asyncpg | Celery / Redis background workers | Strictly adhere to the layered architecture in `apps/backend/src/api/`. |
 | **Frontend Core** | Next.js 16.4 (Turbopack), React 19.3, Tailwind CSS v4, Base UI, shadcn | Advanced Server Actions mutations | Strictly adhere to feature-driven modules in `src/features/` and Base UI primitives in `src/components/ui/`. |
 
 ---

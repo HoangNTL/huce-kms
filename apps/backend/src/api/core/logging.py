@@ -48,4 +48,4 @@ def setup_logging() -> None:
 
     # Suppress verbose logs from third-party libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    logging.getLogger("asyncpg").setLevel(logging.WARNING)

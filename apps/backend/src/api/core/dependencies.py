@@ -14,9 +14,7 @@ from api.core.security import decode_access_token
 from api.repositories.user import UserRepository
 
 
-# -----------------------------------------------------------------------------
-# 1. Reusable Pagination Dependency
-# -----------------------------------------------------------------------------
+# Reusable Pagination Dependency
 class PaginationParams(BaseModel):
     """Reusable pagination query parameters for list endpoints."""
 
@@ -35,9 +33,7 @@ def get_pagination_params(
 PaginationDep = Annotated[PaginationParams, Depends(get_pagination_params)]
 
 
-# -----------------------------------------------------------------------------
-# 2. Database Session Lifecycle Dependency (with yield)
-# -----------------------------------------------------------------------------
+# Database Session Lifecycle Dependency (with yield)
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Provide an asynchronous database session per request lifecycle:
     - Automatically commits transaction on successful execution.
@@ -56,9 +52,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 DatabaseDep = Annotated[AsyncSession, Depends(get_db_session)]
 
 
-# -----------------------------------------------------------------------------
-# 3. Authentication & Role-Based Access Control (RBAC) Dependency
-# -----------------------------------------------------------------------------
+# Authentication & Role-Based Access Control (RBAC) Dependency
 security = HTTPBearer(
     auto_error=False,
     description="Bearer JWT access token obtained from /api/v1/auth/login",

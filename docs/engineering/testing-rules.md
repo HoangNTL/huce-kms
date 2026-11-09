@@ -20,7 +20,7 @@ This document establishes mandatory engineering rules for building the backend a
 
 Testing is structured into 3 distinct tiers:
 1. **Unit Tests (`tests/unit/`)**: Verify isolated business logic in Services, Password Hashing, Token generation, and Pydantic validation (< 1ms/test execution).
-2. **Integration Tests (`tests/integration/`)**: Verify Repository interactions with SQLite (using isolated in-memory SQLite databases or rollbacked transactions).
+2. **Integration Tests (`tests/integration/`)**: Verify Repository interactions with database (using isolated test databases or rollbacked transactions).
 3. **API / End-to-End Tests (`tests/api/`)**: Verify complete HTTP request lifecycles via `httpx.AsyncClient`, covering middleware, dependency injection, cookies, and `BaseResponse` schemas.
 
 ---
@@ -148,8 +148,8 @@ async def test_login_success():
 ### Rule ID: TST-005
 **Title:** Test Database Isolation  
 **Priority:** MUST  
-**Rule:** Automated tests **MUST NEVER RUN** against the development database (`huce_kms.db`). Every test session **MUST** use an isolated database instance:
-- An in-memory SQLite database (`sqlite+aiosqlite:///:memory:`) or a temporary SQLite file created and purged per session.
+**Rule:** Automated tests **MUST NEVER RUN** against the active development database. Every test session **MUST** use an isolated database instance:
+- An isolated test database instance (such as a temporary test database, test container, or rollbacked transactions).
 - Each test case **MUST** run within an isolated transaction that is rolled back or cleaned up upon completion, ensuring zero state contamination between test cases (Test Independence).  
 **Reason:** Guarantees reproducibility and eliminates flaky tests caused by residual data from previous test runs.  
 **Correct Example:**

@@ -309,5 +309,5 @@ Normative Classification:
 ### 11.2. Technical Recommendations for Future Test Phases
 - When automated testing is implemented in subsequent phases, the project **SHOULD**:
   1. Add `pytest`, `pytest-asyncio`, and `httpx` to dev dependencies via `uv add --dev pytest pytest-asyncio httpx`.
-  2. Create `tests/` with `conftest.py` setting up an asynchronous test client and an in-memory SQLite database.
+  2. Create `tests/` with `conftest.py` setting up an asynchronous test client and test database session.
   3. Name test files `test_<module>.py` and test functions `test_<action>_<expected_result>()`.

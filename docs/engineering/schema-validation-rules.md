@@ -22,7 +22,7 @@ To avoid redundant validation logic across architectural layers, HUCE-KMS define
    - *Failure response*: Raises domain `AppException` subclasses (`ConflictException`, `BadRequestException`, `ForbiddenException`).
 3. **Data Integrity Constraints (Database Constraints - SQLAlchemy / Database)**:
    - *Scope*: Primary keys (PK), foreign keys (FK with `ON DELETE CASCADE`), `UNIQUE INDEX`, `NOT NULL` columns.
-   - *Executed by*: Models layer and the Database Engine (SQLite / PostgreSQL).
+   - *Executed by*: Models layer and the Database Engine (PostgreSQL).
 4. **Data Serialization (Serialization - Pydantic Response DTOs)**:
    - *Scope*: Filtering and transforming ORM models into secure outgoing JSON responses, stripping internal fields (such as `hashed_password`).
 
