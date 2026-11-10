@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from api.services.crawler.core.link_discoverer import LinkDiscoverer
 from api.services.crawler.core.markdown_converter import MarkdownConverter
 from api.services.crawler.deduplicator import Deduplicator
 from api.services.crawler.schemas import (
+    BatchCrawlResult,
     CrawledMediaItem,
     CrawlResult,
     PageContentMeta,
@@ -247,4 +249,71 @@ class CrawlerCoreEngine:
             image_count=successful_images,
             duration_seconds=duration,
             errors=errors,
+        )
+
+    async def crawl_batch(
+        self,
+        urls: list[str],
+        max_concurrency: int = 2,
+        skip_media: bool = False,
+        session_id: str | None = None,
+    ) -> BatchCrawlResult:
+        """Crawl a batch of URLs with bounded concurrency and session record keeping."""
+        started_at = datetime.now(timezone.utc).isoformat()
+        start_time = time.perf_counter()
+        active_session_id = session_id or datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def _crawl_single(target_url: str) -> CrawlResult:
+            async with semaphore:
+                try:
+                    return await self.crawl_url(
+                        url=target_url,
+                        skip_media=skip_media,
+                        session_id=active_session_id,
+                    )
+                except Exception as exc:
+                    logger.error("Failed crawling %s in batch: %s", target_url, exc, exc_info=True)
+                    page_dir = self.storage.get_page_dir(target_url)
+                    return CrawlResult(
+                        url=target_url,
+                        status="failed",
+                        title=target_url,
+                        artifact_dir=page_dir,
+                        duration_seconds=0.0,
+                        errors=[str(exc)],
+                    )
+
+        tasks = [_crawl_single(u) for u in urls]
+        gathered_results = await asyncio.gather(*tasks)
+        results = list(gathered_results)
+
+        completed_at = datetime.now(timezone.utc).isoformat()
+        duration_seconds = round(time.perf_counter() - start_time, 2)
+
+        successful = sum(1 for r in results if r.status in ("success", "partial"))
+        failed = sum(1 for r in results if r.status == "failed")
+
+        session_info = {
+            "session_id": active_session_id,
+            "started_at": started_at,
+            "completed_at": completed_at,
+            "duration_seconds": duration_seconds,
+            "total_urls": len(urls),
+            "successful": successful,
+            "failed": failed,
+        }
+        item_results = [r.model_dump(mode="json") for r in results]
+        self.storage.save_session(active_session_id, session_info, item_results)
+
+        return BatchCrawlResult(
+            session_id=active_session_id,
+            total_urls=len(urls),
+            successful=successful,
+            failed=failed,
+            started_at=started_at,
+            completed_at=completed_at,
+            duration_seconds=duration_seconds,
+            results=results,
         )

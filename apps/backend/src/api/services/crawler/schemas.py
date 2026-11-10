@@ -103,3 +103,17 @@ class CrawlResult(BaseModel):
     image_count: int = 0
     duration_seconds: float = 0.0
     errors: list[str] = Field(default_factory=list)
+
+
+class BatchCrawlResult(BaseModel):
+    """Execution summary for a batch of crawled URLs (Approved or List mode)."""
+
+    session_id: str
+    total_urls: int
+    successful: int
+    failed: int
+    started_at: str
+    completed_at: str
+    duration_seconds: float = 0.0
+    results: list[CrawlResult] = Field(default_factory=list)
+
