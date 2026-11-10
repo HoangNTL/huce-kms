@@ -13,6 +13,7 @@ wheels/
 logs/
 uploads/
 output/
+data/
 
 # Environment Variables
 .env
