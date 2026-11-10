@@ -9,9 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
-# Logs & Uploads
+# Logs, Uploads & Evaluation Output
 logs/
 uploads/
+output/
 
 # Environment Variables
 .env

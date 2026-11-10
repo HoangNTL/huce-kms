@@ -20,6 +20,7 @@ from api.schemas.document import (
     DocumentResponse,
 )
 from api.services.rag.chunker import TextChunker
+from api.services.rag.cleaner import TextCleaner
 from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.parser import DocumentParser
 from api.services.rag.vector_store import QdrantVectorStore
@@ -63,6 +64,7 @@ class DocumentService:
         title: str,
         category_id: int | None = None,
         uploader_id: int | None = None,
+        chunk_strategy: str = "legal_structural",
     ) -> DocumentResponse:
         """Validate, store, parse, embed and index an uploaded document into PostgreSQL and Qdrant."""
         # 1. Validate file extension
@@ -123,12 +125,21 @@ class DocumentService:
             document.status = "processing"
             await self.document_repo.update(document)
 
-            # Step 7a: Parse text pages
-            pages = self.parser.parse(file_bytes, file_name)
-            total_pages = len(pages)
+            # Step 7a: Parse raw text pages
+            raw_pages = self.parser.parse(file_bytes, file_name)
+            total_pages = len(raw_pages)
 
-            # Step 7b: Chunk text
-            raw_chunks = self.chunker.chunk_pages(pages)
+            # Step 7b: Clean and normalize text (Unicode NFC, noise & pagination removal)
+            cleaned_pages = TextCleaner.clean_pages(raw_pages)
+
+            # Step 7c: Chunk using structural legal strategy or configured strategy
+            raw_chunks = TextChunker.chunk_with_strategy(
+                pages=cleaned_pages,
+                strategy=chunk_strategy,
+                document_title=document.title,
+                chunk_size=settings.CHUNK_SIZE,
+                chunk_overlap=settings.CHUNK_OVERLAP,
+            )
             if not raw_chunks:
                 raise BadRequestException(
                     message="No extractable text content found in document."

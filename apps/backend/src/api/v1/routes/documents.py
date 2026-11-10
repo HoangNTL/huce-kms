@@ -43,6 +43,7 @@ async def upload_document(
     file: UploadFile = File(..., description="Document file (.pdf, .txt, .md)"),
     title: str | None = Form(None, description="Document display title (defaults to filename)"),
     category_id: int | None = Form(None, description="Category identifier"),
+    chunk_strategy: str = Form("legal_structural", description="Chunking strategy: 'legal_structural' or 'recursive'"),
     current_user: CurrentUserDep = None,
     service: DocumentServiceDep = None,
 ):
@@ -56,6 +57,7 @@ async def upload_document(
         title=doc_title,
         category_id=category_id,
         uploader_id=current_user.id if current_user else None,
+        chunk_strategy=chunk_strategy,
     )
 
     return BaseResponse(
