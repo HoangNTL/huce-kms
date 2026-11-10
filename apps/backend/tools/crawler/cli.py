@@ -126,6 +126,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable detailed debug logging",
     )
 
+    # 4. INGEST Mode: Ingest crawled pages/sessions into RAG pipeline
+    ingest_parser = subparsers.add_parser(
+        "ingest",
+        help="Ingest crawled artifacts into PostgreSQL and optionally Vector DB (INGEST Mode)",
+    )
+    ingest_group = ingest_parser.add_mutually_exclusive_group(required=True)
+    ingest_group.add_argument(
+        "--page",
+        "-p",
+        type=Path,
+        help="Path to single crawled page artifact directory (e.g. data/crawled/pages/<hash>/)",
+    )
+    ingest_group.add_argument(
+        "--session",
+        "-s",
+        type=Path,
+        help="Path to crawled session directory (e.g. data/crawled/sessions/<session_id>/)",
+    )
+    ingest_parser.add_argument(
+        "--category-id",
+        type=int,
+        default=None,
+        help="Target category ID to associate with documents",
+    )
+    ingest_parser.add_argument(
+        "--auto-publish",
+        action="store_true",
+        help="Directly parse, chunk, embed, and index into Vector DB (default: draft/uploaded mode)",
+    )
+    ingest_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable detailed debug logging",
+    )
+
     return parser
 
 
@@ -322,6 +358,118 @@ async def run_crawl(args: argparse.Namespace) -> int:
     return 1
 
 
+async def run_ingest(args: argparse.Namespace) -> int:
+    """Execute INGEST mode into PostgreSQL and optionally Qdrant."""
+    from api.core.database import async_session_factory
+    from api.repositories.category import CategoryRepository
+    from api.repositories.document import DocumentRepository
+    from api.repositories.document_chunk import DocumentChunkRepository
+    from api.services.crawler.ingestion.adapter import CrawlIngestionAdapter
+    from api.services.document import DocumentService
+    from api.services.rag.embedder import GeminiEmbeddingService
+    from api.services.rag.vector_store import QdrantVectorStore
+
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(level=log_level, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    mode_str = "AUTO-PUBLISH (INDEX TO QDRANT)" if args.auto_publish else "STAGING / DRAFT (POSTGRES ONLY)"
+    print("\n" + "=" * 80)
+    print(" HUCE-KMS CONTENT CRAWLER — RAG INGESTION PIPELINE")
+    print("=" * 80)
+    print(f"[*] Ingestion Mode: {mode_str}")
+    if args.category_id:
+        print(f"[*] Category ID:    {args.category_id}")
+
+    async with async_session_factory() as session:
+        doc_repo = DocumentRepository(session)
+        chunk_repo = DocumentChunkRepository(session)
+        cat_repo = CategoryRepository(session)
+        embedder = GeminiEmbeddingService()
+        vector_store = QdrantVectorStore()
+
+        doc_service = DocumentService(
+            document_repo=doc_repo,
+            chunk_repo=chunk_repo,
+            category_repo=cat_repo,
+            embedder=embedder,
+            vector_store=vector_store,
+        )
+
+        adapter = CrawlIngestionAdapter(
+            document_service=doc_service,
+            document_repo=doc_repo,
+            category_repo=cat_repo,
+        )
+
+        try:
+            if args.page:
+                target_page = args.page
+                if not target_page.exists():
+                    print(f"[X] Error: Target page directory does not exist: {target_page}")
+                    return 1
+
+                print(f"[*] Ingesting single page: {target_page}")
+                results = await adapter.ingest_page(
+                    page_dir=target_page,
+                    category_id=args.category_id,
+                    auto_publish=args.auto_publish,
+                )
+                print("\n" + "-" * 80)
+                print(" INGESTION COMPLETE")
+                print("-" * 80)
+                for idx, r in enumerate(results, start=1):
+                    tag = f"[{r.status.upper():8s}]"
+                    doc_id_str = f"ID: {r.document_id}" if r.document_id else "No ID"
+                    chunks_str = f"({r.chunks_count} chunks)" if r.chunks_count else ""
+                    print(f"  {idx:2d}. {tag} {r.title} ({r.file_type.upper()}) | {doc_id_str} {chunks_str}")
+                    if r.error:
+                        print(f"       Note: {r.error}")
+
+            elif args.session:
+                target_session = args.session
+                if not target_session.exists():
+                    alt = Path("data/crawled/sessions") / target_session
+                    if alt.exists():
+                        target_session = alt
+                    else:
+                        print(f"[X] Error: Target session directory does not exist: {target_session}")
+                        return 1
+
+                print(f"[*] Ingesting crawl session: {target_session}")
+                summary = await adapter.ingest_session(
+                    session_dir=target_session,
+                    category_id=args.category_id,
+                    auto_publish=args.auto_publish,
+                )
+
+                print("\n" + "-" * 80)
+                print(" SESSION INGESTION COMPLETE")
+                print("-" * 80)
+                print(f"Pages Processed:   {summary.total_pages}")
+                print(f"Total Documents:   {summary.total_documents}")
+                print(f"Successful:        {summary.successful}")
+                print(f"Skipped (Exists):  {summary.skipped}")
+                print(f"Failed:            {summary.failed}")
+                print("\nItemized Documents:")
+                for idx, r in enumerate(summary.items, start=1):
+                    tag = f"[{r.status.upper():8s}]"
+                    doc_id_str = f"ID: {r.document_id}" if r.document_id else "No ID"
+                    chunks_str = f"({r.chunks_count} chunks)" if r.chunks_count else ""
+                    print(f"  {idx:2d}. {tag} {r.title} ({r.file_type.upper()}) | {doc_id_str} {chunks_str}")
+                    if r.error:
+                        print(f"       Note: {r.error}")
+
+            await session.commit()
+            print("=" * 80 + "\n")
+            return 0
+
+        except Exception as e:
+            await session.rollback()
+            print(f"\n[X] Error during ingestion: {e}")
+            print("=" * 80 + "\n")
+            return 1
+
+
 def main() -> None:
     """CLI entry point."""
     parser = build_parser()
@@ -336,9 +484,13 @@ def main() -> None:
     elif args.command == "crawl":
         exit_code = asyncio.run(run_crawl(args))
         sys.exit(exit_code)
+    elif args.command == "ingest":
+        exit_code = asyncio.run(run_ingest(args))
+        sys.exit(exit_code)
     else:
         parser.print_help()
         sys.exit(1)
+
 
 
 if __name__ == "__main__":
