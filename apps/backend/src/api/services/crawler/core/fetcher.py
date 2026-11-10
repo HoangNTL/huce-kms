@@ -149,3 +149,8 @@ class HttpFetcher:
                     break
 
         raise FetchException(f"Failed to fetch '{url}' after {self.max_retries + 1} attempts: {last_error}", url=url)
+
+    async def aclose(self) -> None:
+        """Close any persistent connections or resources."""
+        pass
+
