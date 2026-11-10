@@ -33,11 +33,22 @@ class HtmlCleaner:
         ".sidebar",
         ".widget",
         ".menu",
+        ".main-menu",
+        ".site-navigation",
         ".nav",
         ".navigation",
+        ".navbar",
         ".footer",
+        ".footer-area",
+        ".footer-top",
+        ".footer-bottom",
+        "#footer",
         ".header",
+        ".header-area",
+        ".top-bar",
         ".social",
+        ".social-share",
+        ".social-media",
         ".share",
         ".banner",
         ".ads",
@@ -47,16 +58,21 @@ class HtmlCleaner:
         "#comments",
         ".related-posts",
         ".related-news",
+        ".post-tags",
     ]
 
     CONTENT_CANDIDATE_SELECTORS = [
-        "main",
-        "article",
+        ".post-content-area",
         ".entry-content",
         ".post-content",
         ".article-content",
-        ".content-detail",
         ".detail-content",
+        ".content-detail",
+        ".post-body",
+        ".news-detail",
+        ".post-detail",
+        "article",
+        "main",
         "#main-content",
         "#content",
         ".main-content",
@@ -67,9 +83,13 @@ class HtmlCleaner:
         """Strip boilerplate and return isolated main content DOM."""
         soup = BeautifulSoup(html, "lxml")
 
-        # 1. Remove explicit noise tags
+        # 1. Remove explicit noise tags (preserving document preview iframes)
         for tag_name in cls.NOISE_TAGS:
             for elem in soup.find_all(tag_name):
+                if tag_name == "iframe":
+                    src = elem.get("src", "").lower()
+                    if "drive.google.com" in src or "docs.google.com" in src:
+                        continue
                 elem.decompose()
 
         # 2. Remove noise by selectors

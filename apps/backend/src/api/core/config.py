@@ -53,7 +53,12 @@ class Settings(BaseSettings):
 
     # Crawler Configuration
     CRAWLER_DATA_DIR: Path = BACKEND_DIR / "data" / "crawled"
-    CRAWLER_ALLOWED_DOMAINS: list[str] = ["huce.edu.vn"]
+    CRAWLER_ALLOWED_DOMAINS: list[str] = [
+        "huce.edu.vn",
+        "drive.google.com",
+        "docs.google.com",
+        "googleusercontent.com",
+    ]
     CRAWLER_REQUEST_TIMEOUT: int = 15
     CRAWLER_MAX_RETRIES: int = 2
     CRAWLER_MAX_FILE_SIZE_MB: int = 20

@@ -26,6 +26,7 @@ class LinkDiscoverer:
 
     PDF_EXT_RE = re.compile(r"\.pdf($|\?|#)", re.IGNORECASE)
     IMAGE_EXT_RE = re.compile(r"\.(png|jpg|jpeg|webp)($|\?|#)", re.IGNORECASE)
+    GDRIVE_FILE_RE = re.compile(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", re.IGNORECASE)
 
     IGNORED_IMG_CLASSES = re.compile(r"(icon|avatar|logo|emoji|badge|rating)", re.IGNORECASE)
 
@@ -77,7 +78,7 @@ class LinkDiscoverer:
         seen_pdf_urls: set[str] = set()
         seen_img_urls: set[str] = set()
 
-        # 1. Discover PDFs
+        # 1. Discover PDFs & Document Links
         for a_tag in soup.find_all("a", href=True):
             href = a_tag["href"].strip()
             if cls.is_pdf_url(href):
@@ -88,6 +89,32 @@ class LinkDiscoverer:
                     discovered_pdfs.append(
                         DiscoveredLink(url=abs_url, title=link_title, media_type="pdf")
                     )
+            elif match := cls.GDRIVE_FILE_RE.search(href):
+                file_id = match.group(1)
+                direct_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                if direct_url not in seen_pdf_urls:
+                    seen_pdf_urls.add(direct_url)
+                    link_title = a_tag.get_text(strip=True) or a_tag.get("title", "") or "Tài liệu đính kèm (Google Drive)"
+                    discovered_pdfs.append(
+                        DiscoveredLink(url=direct_url, title=link_title, media_type="pdf")
+                    )
+                a_tag["href"] = direct_url
+
+        # 1b. Discover Google Drive preview iframes and replace with link
+        for iframe in soup.find_all("iframe", src=True):
+            src = iframe["src"].strip()
+            match = cls.GDRIVE_FILE_RE.search(src)
+            if match:
+                file_id = match.group(1)
+                direct_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                if direct_url not in seen_pdf_urls:
+                    seen_pdf_urls.add(direct_url)
+                    discovered_pdfs.append(
+                        DiscoveredLink(url=direct_url, title="Tài liệu đính kèm (Google Drive)", media_type="pdf")
+                    )
+                new_a = soup.new_tag("a", href=direct_url)
+                new_a.string = "Tài liệu đính kèm (Google Drive)"
+                iframe.replace_with(new_a)
 
         # 2. Discover Images
         for img_tag in soup.find_all("img"):

@@ -175,13 +175,21 @@ class CrawlerCoreEngine:
         # 7. Convert HTML to clean Markdown with local media rewrites
         crawled_at = datetime.now(timezone.utc).isoformat()
         markdown_content = MarkdownConverter.convert(
-            html=cleaned_res.main_content_html,
+            html=str(cleaned_res.soup),
             title=title,
             source_url=final_url,
             crawled_at=crawled_at,
             published_at=extracted_meta.published_at,
             media_mapping=media_mapping,
         )
+
+        # Append explicit attachments section for downloaded PDFs
+        successful_pdf_items = [p for p in crawled_pdfs if p.status == "success"]
+        if successful_pdf_items:
+            pdf_section = ["\n\n## Tài liệu đính kèm\n"]
+            for p in successful_pdf_items:
+                pdf_section.append(f"- [{p.file_name}](./{p.local_path})")
+            markdown_content += "\n".join(pdf_section)
 
         content_hash = Deduplicator.compute_content_hash(markdown_content)
 
