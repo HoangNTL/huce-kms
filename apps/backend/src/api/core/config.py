@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 150
 
+    # Crawler Configuration
+    CRAWLER_DATA_DIR: Path = BACKEND_DIR / "data" / "crawled"
+    CRAWLER_ALLOWED_DOMAINS: list[str] = ["huce.edu.vn"]
+    CRAWLER_REQUEST_TIMEOUT: int = 15
+    CRAWLER_MAX_RETRIES: int = 2
+    CRAWLER_MAX_FILE_SIZE_MB: int = 20
+    CRAWLER_USER_AGENT: str = "HUCE-KMS-Crawler/1.0 (+https://huce.edu.vn)"
+
     # JWT & Security Configuration
     SECRET_KEY: str = "huce-kms-super-secret-key-change-in-production-2026"
     ALGORITHM: str = "HS256"
