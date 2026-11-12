@@ -4,13 +4,16 @@ import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Lock, User, LogIn } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Eye, EyeOff, Lock, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
+import { authService } from "@/features/auth/services/auth-service"
+import { useAuthStore } from "@/stores/use-auth-store"
+import { USER_ROLES } from "@/types/user"
 
 const loginSchema = z.object({
   username: z.string().min(3, "Tên đăng nhập tối thiểu 3 ký tự"),
@@ -23,6 +26,8 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const setAuth = useAuthStore((state) => state.setAuth)
 
   const {
     register,
@@ -36,20 +41,40 @@ export function LoginForm() {
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true)
     try {
-      // Simulate login for foundation skeleton
-      await new Promise((res) => setTimeout(res, 800))
+      const response = await authService.login(values)
+      setAuth(response)
+
+      const role = String(response.user.role || "").toLowerCase()
+      const displayName = response.user.full_name || response.user.username
+
       toast.success("Đăng nhập thành công!", {
-        description: `Chào mừng bạn quay trở lại, ${values.username}!`,
+        description: `Chào mừng bạn quay trở lại, ${displayName}!`,
       })
-      // Redirect based on dummy role
-      if (values.username.toLowerCase().includes("admin")) {
+
+      const from = searchParams.get("from")
+      if (from && from.startsWith("/")) {
+        router.push(from)
+      } else if (role === USER_ROLES.ADMIN) {
         router.push(ROUTES.ADMIN.DASHBOARD)
       } else {
         router.push(ROUTES.USER.CHAT)
       }
-    } catch {
+    } catch (err) {
+      let errorMsg = "Tên đăng nhập, email hoặc mật khẩu không chính xác."
+      if (err instanceof Error) {
+        const msg = err.message.toLowerCase()
+        if (msg.includes("invalid username") || msg.includes("password") || msg.includes("credentials")) {
+          errorMsg = "Tên đăng nhập, email hoặc mật khẩu không chính xác."
+        } else if (msg.includes("deactivated") || msg.includes("inactive") || msg.includes("khóa")) {
+          errorMsg = "Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động."
+        } else if (msg.includes("network") || msg.includes("failed to fetch")) {
+          errorMsg = "Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại mạng."
+        } else {
+          errorMsg = err.message
+        }
+      }
       toast.error("Đăng nhập thất bại", {
-        description: "Vui lòng kiểm tra lại tên đăng nhập hoặc mật khẩu.",
+        description: errorMsg,
       })
     } finally {
       setIsLoading(false)
@@ -63,7 +88,7 @@ export function LoginForm() {
         <div className="relative">
           <Input
             id="username"
-            placeholder="Nhập tên đăng nhập hoặc email HUCE"
+            placeholder="Nhập tên đăng nhập hoặc email"
             {...register("username")}
             disabled={isLoading}
             className="pl-9"
@@ -101,10 +126,9 @@ export function LoginForm() {
 
       <Button
         type="submit"
-        className="mt-2 w-full bg-brand-primary text-white hover:bg-brand-primary-hover"
+        className="mt-2 w-full bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold"
         disabled={isLoading}
       >
-        <LogIn className="mr-2 h-4 w-4" />
         {isLoading ? "Đang xử lý..." : "Đăng nhập"}
       </Button>
     </form>

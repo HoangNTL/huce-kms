@@ -4,24 +4,28 @@ import type { UserProfile } from "@/types/user"
 
 export const authService = {
   async login(payload: LoginPayload): Promise<AuthTokens> {
-    const formData = new URLSearchParams()
-    formData.append("username", payload.username)
-    formData.append("password", payload.password)
-
-    return apiClient.post<AuthTokens>("/api/v1/auth/login", formData, {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    })
+    return apiClient.post<AuthTokens>("/auth/login", payload)
   },
 
   async register(payload: RegisterPayload): Promise<UserProfile> {
-    return apiClient.post<UserProfile>("/api/v1/auth/register", payload)
+    const backendPayload = {
+      username: payload.username,
+      email: payload.email,
+      full_name: payload.full_name || null,
+      password: payload.password,
+    }
+    return apiClient.post<UserProfile>("/auth/register", backendPayload)
   },
 
   async getMe(): Promise<UserProfile> {
-    return apiClient.get<UserProfile>("/api/v1/users/me")
+    return apiClient.get<UserProfile>("/users/me")
+  },
+
+  async refreshToken(): Promise<AuthTokens> {
+    return apiClient.post<AuthTokens>("/auth/refresh")
   },
 
   async logout(): Promise<{ message: string }> {
-    return apiClient.post<{ message: string }>("/api/v1/auth/logout")
+    return apiClient.post<{ message: string }>("/auth/logout")
   },
 }

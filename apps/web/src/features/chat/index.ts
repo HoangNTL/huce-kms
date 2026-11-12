@@ -1,5 +1,6 @@
 export * from "./types"
 export * from "./services/chat-service"
+export * from "./hooks/use-rag-stream"
 export * from "./components/chat-composer"
 export * from "./components/citation-badge"
 export * from "./components/feedback-buttons"

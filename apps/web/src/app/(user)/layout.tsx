@@ -1,15 +1,18 @@
 import * as React from "react"
-import { UserHeader } from "@/components/layout/user-header"
-import { UserSidebar } from "@/components/layout/user-sidebar"
+import { AppSidebar } from "@/components/layout/app-sidebar"
+import { AppHeader } from "@/components/layout/app-header"
+import { AuthGuard } from "@/components/layout/auth-guard"
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <UserHeader />
-      <div className="flex flex-1 overflow-hidden">
-        <UserSidebar />
-        <main className="flex flex-1 flex-col overflow-y-auto">{children}</main>
+    <AuthGuard>
+      <div className="flex min-h-screen flex-col bg-background">
+        <AppHeader />
+        <div className="flex flex-1 overflow-hidden">
+          <AppSidebar />
+          <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">{children}</main>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   )
 }

@@ -22,6 +22,11 @@ class UserRepository(BaseRepository[User]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_username_or_email(self, identifier: str) -> User | None:
+        stmt = select(User).where(or_(User.username == identifier, User.email == identifier))
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def search_with_count(
         self,
         q: str | None = None,

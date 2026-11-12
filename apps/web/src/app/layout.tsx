@@ -3,8 +3,13 @@ import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "HUCE KMS - Hệ thống Quản trị Tri thức & Trợ lý AI",
+  title: "HUCE KMS - Hệ thống Quản trị Tri thức và Trợ lý AI",
   description: "Hệ thống Quản trị Tri thức và Trợ lý AI Trường Đại học Xây dựng Hà Nội",
+  icons: {
+    icon: "/huce-logo.svg",
+    shortcut: "/huce-logo.svg",
+    apple: "/huce-logo.svg",
+  },
 }
 
 export default function RootLayout({
@@ -15,6 +20,7 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <head>
+        <link rel="icon" href="/huce-logo.svg" type="image/svg+xml" sizes="any" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

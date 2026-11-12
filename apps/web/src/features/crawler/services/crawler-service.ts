@@ -1,31 +1,43 @@
 import { apiClient } from "@/lib/api-client"
-import type { CrawlSource, CrawlJob } from "../types"
-import type { PaginatedResponse, PaginationParams } from "@/types/api"
+import type {
+  CrawlDirectPayload,
+  CrawlDirectResult,
+  DiscoverPayload,
+  DiscoverResult,
+  QueueResponse,
+  ApproveQueuePayload,
+  IngestPayload,
+} from "../types"
 
 export const crawlerService = {
-  async getSources(params?: PaginationParams): Promise<PaginatedResponse<CrawlSource>> {
-    return apiClient.get<PaginatedResponse<CrawlSource>>("/api/v1/crawler/sources", { params })
+  async crawlDirect(payload: CrawlDirectPayload): Promise<CrawlDirectResult> {
+    return apiClient.post<CrawlDirectResult>("/crawler/crawl", payload)
   },
 
-  async createSource(
-    data: Omit<CrawlSource, "id" | "createdAt" | "lastCrawledAt">
-  ): Promise<CrawlSource> {
-    return apiClient.post<CrawlSource>("/api/v1/crawler/sources", data)
+  async discover(payload: DiscoverPayload): Promise<DiscoverResult> {
+    return apiClient.post<DiscoverResult>("/crawler/discover", payload)
   },
 
-  async deleteSource(id: string): Promise<{ success: boolean }> {
-    return apiClient.delete<{ success: boolean }>(`/api/v1/crawler/sources/${id}`)
+  async getQueue(): Promise<QueueResponse> {
+    return apiClient.get<QueueResponse>("/crawler/queue")
   },
 
-  async getJobs(params?: PaginationParams): Promise<PaginatedResponse<CrawlJob>> {
-    return apiClient.get<PaginatedResponse<CrawlJob>>("/api/v1/crawler/jobs", { params })
+  async approveQueue(payload: ApproveQueuePayload): Promise<{
+    approved_file: string
+    total_approved: number
+    urls: string[]
+  }> {
+    return apiClient.post<{ approved_file: string; total_approved: number; urls: string[] }>(
+      "/crawler/queue/approve",
+      payload
+    )
   },
 
-  async triggerJob(sourceId: string): Promise<CrawlJob> {
-    return apiClient.post<CrawlJob>(`/api/v1/crawler/jobs/trigger`, { sourceId })
+  async ingest(payload: IngestPayload): Promise<Record<string, unknown>> {
+    return apiClient.post<Record<string, unknown>>("/crawler/ingest", payload)
   },
 
-  async stopJob(jobId: string): Promise<{ success: boolean }> {
-    return apiClient.post<{ success: boolean }>(`/api/v1/crawler/jobs/${jobId}/stop`)
+  async getSessions(): Promise<Array<Record<string, unknown>>> {
+    return apiClient.get<Array<Record<string, unknown>>>("/crawler/sessions")
   },
 }

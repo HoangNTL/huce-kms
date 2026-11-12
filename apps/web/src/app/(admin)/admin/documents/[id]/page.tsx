@@ -2,12 +2,14 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, Save, Layers } from "lucide-react"
+import { ArrowLeft, Layers, Loader2, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { DocumentStatusBadge, type DocumentChunk } from "@/features/documents"
+import {
+  DocumentStatusBadge,
+  documentService,
+  type DocumentDetail,
+} from "@/features/documents"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
 
@@ -15,43 +17,64 @@ interface DocumentDetailPageProps {
   params: Promise<{ id: string }>
 }
 
-const sampleChunks: DocumentChunk[] = [
-  {
-    id: "chk-01",
-    documentId: "doc-01",
-    chunkIndex: 0,
-    content:
-      "Chương I: QUY ĐỊNH CHUNG. Điều 1. Phạm vi điều chỉnh và đối tượng áp dụng. Quy chế này quy định về tổ chức và quản lý đào tạo trình độ đại học theo hệ thống tín chỉ đối với các hình thức đào tạo chính quy tại Trường Đại học Xây dựng Hà Nội...",
-    tokenCount: 185,
-  },
-  {
-    id: "chk-02",
-    documentId: "doc-01",
-    chunkIndex: 1,
-    content:
-      "Điều 2. Thời gian và kế hoạch đào tạo. Trường tổ chức đào tạo theo các khóa học, năm học và học kỳ. Một năm học có hai học kỳ chính và một học kỳ phụ. Thời gian tối đa để hoàn thành chương trình không vượt quá 2 lần thời gian thiết kế của khóa học...",
-    tokenCount: 210,
-  },
-]
-
 export default function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const resolvedParams = React.use(params)
-  const [title, setTitle] = React.useState("Quy chế đào tạo trình độ đại học chính quy 2024")
-  const [category, setCategory] = React.useState("Quy chế")
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [doc, setDoc] = React.useState<DocumentDetail | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
 
-  const handleSave = async (e: React.SubmitEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    try {
-      await new Promise((res) => setTimeout(res, 600))
-      toast.success("Cập nhật thông tin tài liệu thành công!")
-    } catch {
-      toast.error("Cập nhật thất bại")
-    } finally {
-      setIsLoading(false)
-    }
+  React.useEffect(() => {
+    documentService
+      .getDocument(resolvedParams.id)
+      .then((data) => {
+        setDoc(data)
+      })
+      .catch((err) => {
+        toast.error("Không thể tải thông tin tài liệu", {
+          description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
+        })
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [resolvedParams.id])
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-2 text-xs text-muted">
+        <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
+        <span>Đang tải thông tin tài liệu #{resolvedParams.id}...</span>
+      </div>
+    )
   }
+
+  if (!doc) {
+    return (
+      <div className="space-y-4">
+        <Link href={ROUTES.ADMIN.DOCUMENTS}>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Quay lại danh sách</span>
+          </Button>
+        </Link>
+        <Card className="p-8 text-center text-xs text-muted">
+          Không tìm thấy tài liệu có ID #{resolvedParams.id}.
+        </Card>
+      </div>
+    )
+  }
+
+  const categoryName =
+    typeof doc.category === "object" && doc.category?.name
+      ? doc.category.name
+      : typeof doc.category === "string"
+        ? doc.category
+        : "Chung"
+
+  const fileSizeMB = doc.file_size
+    ? (doc.file_size / 1024 / 1024).toFixed(2)
+    : "0.00"
+
+  const chunks = doc.chunks || []
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -63,75 +86,70 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
         </Link>
         <div>
           <h2 className="font-heading text-xl font-bold text-heading">Chi tiết Tài liệu</h2>
-          <p className="text-xs text-muted">Mã tài liệu: {resolvedParams.id}</p>
+          <p className="text-xs text-muted">Mã tài liệu: #{resolvedParams.id}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Metadata Edit Form */}
+        {/* Metadata Information */}
         <Card className="h-fit border-border shadow-xs lg:col-span-1">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="font-heading text-sm font-bold text-heading">
                 Thông tin Tài liệu
               </CardTitle>
-              <DocumentStatusBadge status="INDEXED" />
+              <DocumentStatusBadge status={doc.status} />
             </div>
             <CardDescription className="text-xs">
-              Chỉnh sửa metadata phục vụ tìm kiếm
+              Metadata bóc tách phục vụ tìm kiếm RAG
             </CardDescription>
           </CardHeader>
-          <form onSubmit={handleSave}>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="title" className="text-xs">
-                  Tên văn bản
-                </Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="text-xs"
-                />
-              </div>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <span className="text-[11px] font-semibold text-muted">Tên văn bản:</span>
+              <p className="text-xs font-medium text-heading">{doc.title}</p>
+            </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="category" className="text-xs">
-                  Danh mục
-                </Label>
-                <Input
-                  id="category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="text-xs"
-                />
-              </div>
+            <div className="space-y-1">
+              <span className="text-[11px] font-semibold text-muted">Danh mục:</span>
+              <p className="text-xs font-medium text-heading">{categoryName}</p>
+            </div>
 
-              <div className="space-y-2 rounded-lg border border-border bg-surface/50 p-3 text-[11px] text-muted">
-                <div className="flex justify-between">
-                  <span>Tên tệp gốc:</span>
-                  <span className="font-medium text-heading">quy_che_2024.pdf</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Kích thước:</span>
-                  <span className="font-medium text-heading">2.34 MB</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tổng chunks:</span>
-                  <span className="font-medium font-semibold text-brand-primary">148 chunks</span>
-                </div>
+            <div className="space-y-2 rounded-lg border border-border bg-surface/50 p-3 text-[11px] text-muted">
+              <div className="flex justify-between">
+                <span>Tên tệp gốc:</span>
+                <span className="font-medium text-heading truncate max-w-44">{doc.file_name}</span>
               </div>
-
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full gap-1.5 bg-brand-primary text-xs text-white hover:bg-brand-primary-hover"
-              >
-                <Save className="h-3.5 w-3.5" />
-                {isLoading ? "Đang lưu..." : "Lưu thay đổi"}
-              </Button>
-            </CardContent>
-          </form>
+              <div className="flex justify-between">
+                <span>Định dạng:</span>
+                <span className="font-medium uppercase text-heading">{doc.file_type}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Kích thước:</span>
+                <span className="font-medium text-heading">{fileSizeMB} MB</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tổng chunks:</span>
+                <span className="font-semibold text-brand-primary">
+                  {doc.chunk_count ?? chunks.length} chunks
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Số trang:</span>
+                <span className="font-medium text-heading">
+                  {doc.total_pages ?? 1} trang
+                </span>
+              </div>
+              {doc.created_at && (
+                <div className="flex justify-between">
+                  <span>Ngày tải lên:</span>
+                  <span className="font-medium text-heading">
+                    {new Date(doc.created_at).toLocaleDateString("vi-VN")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
         </Card>
 
         {/* Chunks Explorer */}
@@ -140,28 +158,44 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
             <div className="flex items-center gap-2">
               <Layers className="h-4 w-4 text-brand-primary" />
               <CardTitle className="font-heading text-sm font-bold text-heading">
-                Danh sách Chunks Trích xuất (Vector Chunks)
+                Danh sách Chunks Trích xuất (Vector Chunks: {chunks.length})
               </CardTitle>
             </div>
             <CardDescription className="text-xs">
-              Các đoạn văn bản đã bóc tách được embedding và đối chiếu khi người dùng tra cứu AI
+              Các đoạn văn bản đã bóc tách cấu trúc pháp lý, tạo vector embedding lưu trên Qdrant
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {sampleChunks.map((chk) => (
-              <div
-                key={chk.id}
-                className="space-y-2 rounded-lg border border-border bg-surface/50 p-4 text-xs"
-              >
-                <div className="flex items-center justify-between text-[11px] font-semibold text-muted">
-                  <span className="text-brand-primary">
-                    Chunk #{chk.chunkIndex + 1} ({chk.id})
-                  </span>
-                  <span>{chk.tokenCount} tokens</span>
-                </div>
-                <p className="leading-relaxed text-body">{chk.content}</p>
+            {chunks.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-8 text-center text-xs text-muted">
+                <FileText className="mx-auto mb-2 h-6 w-6 text-muted" />
+                <p>Tài liệu này chưa có chunks nào được trích xuất (Trạng thái: {doc.status}).</p>
               </div>
-            ))}
+            ) : (
+              chunks.map((chk, idx) => {
+                const chunkIndex = chk.chunk_index ?? idx
+                const pageNum = chk.page_number || 1
+                const tokens = chk.token_count || 0
+
+                return (
+                  <div
+                    key={chk.id || idx}
+                    className="space-y-2 rounded-lg border border-border bg-surface/50 p-4 text-xs transition-colors hover:bg-surface"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-muted">
+                      <span className="text-brand-primary">
+                        Chunk #{chunkIndex + 1}
+                      </span>
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <span>Trang {pageNum}</span>
+                        <span>{tokens} tokens</span>
+                      </div>
+                    </div>
+                    <p className="leading-relaxed text-body whitespace-pre-wrap">{chk.content}</p>
+                  </div>
+                )
+              })
+            )}
           </CardContent>
         </Card>
       </div>

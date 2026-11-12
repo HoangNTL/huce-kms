@@ -1,3 +1,5 @@
+import type { UserProfile } from "@/types/user"
+
 export interface LoginPayload {
   username: string
   password: string
@@ -6,12 +8,13 @@ export interface LoginPayload {
 export interface RegisterPayload {
   username: string
   email: string
-  fullName: string
+  full_name: string
   password: string
 }
 
 export interface AuthTokens {
-  accessToken: string
-  refreshToken: string
-  tokenType: string
+  access_token: string
+  refresh_token?: string | null
+  token_type?: string
+  user: UserProfile
 }

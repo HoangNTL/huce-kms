@@ -34,12 +34,12 @@ class AuthService:
         # 1. Verify username uniqueness
         existing_user = await self.user_repo.get_by_username(payload.username)
         if existing_user:
-            raise ConflictException(message=f"Username '{payload.username}' is already taken.")
+            raise ConflictException(message=f"Tên đăng nhập '{payload.username}' đã được sử dụng.")
 
         # 2. Verify email uniqueness
         existing_email = await self.user_repo.get_by_email(payload.email)
         if existing_email:
-            raise ConflictException(message=f"Email '{payload.email}' is already registered.")
+            raise ConflictException(message=f"Địa chỉ email '{payload.email}' đã được đăng ký.")
 
         # 3. Hash password with Argon2id and create user with default role 'user'
         user = User(
@@ -64,14 +64,14 @@ class AuthService:
         Returns:
             tuple[UserResponse, str, str]: (user_profile, access_token, refresh_token)
         """
-        # 1. Find user and verify password
-        user = await self.user_repo.get_by_username(payload.username)
+        # 1. Find user by username or email and verify password
+        user = await self.user_repo.get_by_username_or_email(payload.username)
         if not user or not verify_password(payload.password, user.hashed_password):
-            raise UnauthorizedException(message="Invalid username or password.")
+            raise UnauthorizedException(message="Tên đăng nhập, email hoặc mật khẩu không chính xác.")
 
         # 2. Check active status
         if not user.is_active:
-            raise BadRequestException(message="This account has been deactivated.")
+            raise BadRequestException(message="Tài khoản này đã bị khóa hoặc ngừng hoạt động.")
 
         # 3. Create short-lived Access Token
         access_token = create_access_token({

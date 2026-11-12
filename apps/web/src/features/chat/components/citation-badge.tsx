@@ -20,13 +20,17 @@ interface CitationBadgeProps {
 export function CitationBadge({ citation, index }: CitationBadgeProps) {
   const [open, setOpen] = React.useState(false)
 
+  const docTitle = citation.title || "Tài liệu HUCE"
+  const page = citation.page_number
+  const chunkIdentifier = citation.chunk_index !== undefined ? `#${citation.chunk_index}` : ""
+
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
         className="group mx-1 inline-flex cursor-pointer items-center gap-1 align-baseline"
-        title={`Xem tài liệu nguồn: ${citation.documentTitle}`}
+        title={`Xem tài liệu nguồn: ${docTitle}`}
       >
         <Badge
           variant="outline"
@@ -45,7 +49,7 @@ export function CitationBadge({ citation, index }: CitationBadgeProps) {
               <span>Tài liệu Đối chứng Nguồn</span>
             </DialogTitle>
             <DialogDescription className="pt-1 font-medium text-heading">
-              {citation.documentTitle}
+              {docTitle}
             </DialogDescription>
           </DialogHeader>
 
@@ -54,14 +58,14 @@ export function CitationBadge({ citation, index }: CitationBadgeProps) {
               <p className="mb-1 text-[11px] font-semibold tracking-wider text-brand-primary text-heading uppercase">
                 Đoạn trích dẫn liên quan:
               </p>
-              "{citation.snippet}"
+              &ldquo;{citation.snippet}&rdquo;
             </div>
 
             <div className="flex items-center justify-between pt-1 text-xs text-muted">
-              <span>Mã chunk: {citation.chunkId}</span>
-              {citation.pageNumber && <span>Trang số: {citation.pageNumber}</span>}
-              {citation.score && (
-                <span className="font-medium text-success">
+              {chunkIdentifier && <span>Mã chunk: {chunkIdentifier}</span>}
+              {page !== undefined && <span>Trang số: {page}</span>}
+              {citation.score !== undefined && (
+                <span className="font-medium text-emerald-600">
                   Độ khớp: {(citation.score * 100).toFixed(1)}%
                 </span>
               )}

@@ -40,6 +40,9 @@ def clear_refresh_token_cookie(response: Response) -> None:
     response.delete_cookie(
         key=settings.REFRESH_COOKIE_NAME,
         path=settings.COOKIE_PATH,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
     )
 
 

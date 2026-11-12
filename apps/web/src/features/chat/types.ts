@@ -1,10 +1,10 @@
 export interface Citation {
-  documentId: string
-  documentTitle: string
-  chunkId: string
+  document_id: number | string
+  title: string
+  page_number: number
+  chunk_index: number
+  score: number
   snippet: string
-  pageNumber?: number
-  score?: number
 }
 
 export interface ChatMessage {
@@ -12,19 +12,19 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system"
   content: string
   citations?: Citation[]
-  createdAt: string
+  created_at: string
   feedback?: "like" | "dislike"
 }
 
 export interface Conversation {
   id: string
   title: string
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
   messages?: ChatMessage[]
 }
 
 export interface SendMessagePayload {
-  conversationId?: string
+  conversation_id?: string
   message: string
 }

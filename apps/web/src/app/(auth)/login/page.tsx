@@ -4,7 +4,6 @@ import { Metadata } from "next"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -15,23 +14,28 @@ import { ROUTES } from "@/constants/routes"
 export const metadata: Metadata = {
   title: "Đăng nhập | HUCE KMS",
   description:
-    "Đăng nhập vào Hệ thống Quản trị Tri thức & Trợ lý AI Trường Đại học Xây dựng Hà Nội",
+    "Đăng nhập vào Hệ thống Quản trị Tri thức và Trợ lý AI Trường Đại học Xây dựng Hà Nội",
 }
 
 export default function LoginPage() {
   return (
     <Card className="border-border shadow-xs">
-      <CardHeader className="space-y-1 text-center">
+      <CardHeader className="text-center pb-2">
         <CardTitle className="font-heading text-xl font-bold text-heading">
-          Đăng nhập tài khoản
+          Đăng nhập hệ thống
         </CardTitle>
-        <CardDescription className="text-xs">
-          Nhập thông tin xác thực do Trường Đại học Xây dựng Hà Nội cấp
-        </CardDescription>
       </CardHeader>
 
       <CardContent>
-        <LoginForm />
+        <React.Suspense
+          fallback={
+            <div className="flex h-40 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+            </div>
+          }
+        >
+          <LoginForm />
+        </React.Suspense>
       </CardContent>
 
       <CardFooter className="flex flex-col gap-2 border-t border-border/50 pt-4 text-center text-xs text-muted">
@@ -41,7 +45,7 @@ export default function LoginPage() {
             href={ROUTES.AUTH.REGISTER}
             className="font-medium text-brand-primary hover:underline"
           >
-            Đăng ký tài khoản sinh viên
+            Đăng ký tài khoản
           </Link>
         </div>
       </CardFooter>

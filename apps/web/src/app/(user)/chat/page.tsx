@@ -29,11 +29,13 @@ export default function NewChatPage() {
 
   const handleSend = React.useCallback(
     (promptMessage: string) => {
-      // Store initial query if needed and navigate to new thread
-      const randomSuffix = Math.random().toString(36).substring(2, 8)
-      const newId = `thread-${randomSuffix}`
-      if (promptMessage) {
-        // Ready for session init
+      const trimmed = promptMessage.trim()
+      if (!trimmed) return
+      const newId = `thread-${Date.now()}`
+      try {
+        sessionStorage.setItem("huce_pending_query", trimmed)
+      } catch {
+        // Ignore storage error
       }
       router.push(ROUTES.USER.CHAT_DETAIL(newId))
     },

@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -20,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "@/components/ui/sonner"
+import { documentService } from "../services/document-service"
+import type { CategoryItem } from "../types"
 
 interface DocumentUploadModalProps {
   open: boolean
@@ -29,12 +32,48 @@ interface DocumentUploadModalProps {
 
 export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentUploadModalProps) {
   const [file, setFile] = React.useState<File | null>(null)
-  const [category, setCategory] = React.useState("Quy chế")
+  const [title, setTitle] = React.useState("")
+  const [categories, setCategories] = React.useState<CategoryItem[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState<string>("")
   const [isLoading, setIsLoading] = React.useState(false)
+
+  const categoryOptions: Record<string, string> = React.useMemo(() => {
+    const map: Record<string, string> = {
+      "1": "Quy chế Đào tạo",
+      "2": "Quy chế Sinh viên",
+      "3": "Học bổng & Học phí",
+      "4": "Biểu mẫu Hành chính",
+    }
+    for (const cat of categories) {
+      map[String(cat.id)] = cat.name
+    }
+    return map
+  }, [categories])
+
+  React.useEffect(() => {
+    if (open) {
+      documentService
+        .getCategories()
+        .then((cats) => {
+          setCategories(cats || [])
+          if (cats && cats.length > 0 && !selectedCategoryId) {
+            setSelectedCategoryId(String(cats[0].id))
+          }
+        })
+        .catch(() => {
+          // If category endpoint fails, fallback to empty
+        })
+    }
+  }, [open, selectedCategoryId])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0])
+      const selectedFile = e.target.files[0]
+      setFile(selectedFile)
+      if (!title) {
+        const defaultTitle = selectedFile.name.replace(/\.[^/.]+$/, "")
+        setTitle(defaultTitle)
+      }
     }
   }
 
@@ -46,15 +85,25 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
 
     setIsLoading(true)
     try {
-      await new Promise((res) => setTimeout(res, 1000))
+      const doc = await documentService.uploadDocument(
+        file,
+        title || undefined,
+        selectedCategoryId ? Number(selectedCategoryId) : undefined
+      )
+
       toast.success("Tải lên tài liệu thành công!", {
-        description: `Tài liệu "${file.name}" đã được đưa vào hàng đợi bóc tách chunks & index vector.`,
+        description: `Tài liệu "${doc.title || file.name}" đã được nạp và phân mảnh vào hệ thống RAG.`,
       })
       setFile(null)
+      setTitle("")
       onOpenChange(false)
       if (onSuccess) onSuccess()
-    } catch {
-      toast.error("Tải tài liệu lên thất bại")
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error ? err.message : "Tải tài liệu lên thất bại. Vui lòng thử lại."
+      toast.error("Tải tài liệu lên thất bại", {
+        description: errorMsg,
+      })
     } finally {
       setIsLoading(false)
     }
@@ -69,23 +118,50 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
             <span>Tải lên Tài liệu Tri thức Mới</span>
           </DialogTitle>
           <DialogDescription>
-            Hệ thống hỗ trợ các định dạng .PDF, .DOCX. Sau khi tải lên, tài liệu sẽ tự động được
-            phân mảnh và nạp vào vector database.
+            Hệ thống hỗ trợ các định dạng .PDF, .TXT, .MD (Tối đa 25MB). Sau khi tải lên, tài liệu
+            sẽ tự động được làm sạch, phân mảnh cấu trúc và nạp vào vector database.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
+            <Label htmlFor="doc-title">Tên văn bản / Tiêu đề</Label>
+            <Input
+              id="doc-title"
+              placeholder="Nhập tiêu đề tài liệu (mặc định lấy tên tệp)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <Label htmlFor="category">Danh mục tài liệu</Label>
-            <Select value={category} onValueChange={(val) => setCategory(val || "Quy chế")}>
+            <Select
+              items={categoryOptions}
+              value={selectedCategoryId}
+              onValueChange={(val) => setSelectedCategoryId(val || "")}
+            >
               <SelectTrigger id="category" className="w-full">
-                <SelectValue placeholder="Chọn danh mục" />
+                <SelectValue placeholder="Chọn danh mục">
+                  {(val) => categoryOptions[String(val)] || "Chọn danh mục"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Quy chế">Quy chế Đào tạo</SelectItem>
-                <SelectItem value="Quy định">Quy định Học bổng & Học phí</SelectItem>
-                <SelectItem value="Hướng dẫn">Hướng dẫn Đồ án Tốt nghiệp</SelectItem>
-                <SelectItem value="Biểu mẫu">Biểu mẫu & Thủ tục Hành chính</SelectItem>
+                {categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <SelectItem key={String(cat.id)} value={String(cat.id)}>
+                      {cat.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="1">Quy chế Đào tạo</SelectItem>
+                    <SelectItem value="2">Quy chế Sinh viên</SelectItem>
+                    <SelectItem value="3">Học bổng & Học phí</SelectItem>
+                    <SelectItem value="4">Biểu mẫu Hành chính</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -95,14 +171,15 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
             <div className="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 p-6 text-center transition-colors hover:bg-surface">
               <input
                 type="file"
-                accept=".pdf,.docx"
+                accept=".pdf,.txt,.md"
                 onChange={handleFileChange}
+                disabled={isLoading}
                 className="absolute inset-0 cursor-pointer opacity-0"
               />
               <UploadCloud className="mb-2 h-8 w-8 text-brand-primary" />
               <p className="text-xs font-semibold text-heading">Kéo thả hoặc nhấp để chọn tệp</p>
               <p className="mt-1 text-[11px] text-muted">
-                Định dạng hỗ trợ: PDF, DOCX (Tối đa 25MB)
+                Định dạng hỗ trợ: PDF, TXT, MD (Tối đa 25MB)
               </p>
             </div>
             {file && (
@@ -117,6 +194,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
                 <button
                   type="button"
                   onClick={() => setFile(null)}
+                  disabled={isLoading}
                   className="text-muted hover:text-destructive"
                 >
                   <X className="h-4 w-4" />
@@ -135,7 +213,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
             disabled={!file || isLoading}
             className="bg-brand-primary text-white hover:bg-brand-primary-hover"
           >
-            {isLoading ? "Đang tải lên..." : "Tải lên & Xử lý"}
+            {isLoading ? "Đang tải lên & index..." : "Tải lên & Xử lý"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,7 +4,6 @@ import { Metadata } from "next"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -14,19 +13,16 @@ import { ROUTES } from "@/constants/routes"
 
 export const metadata: Metadata = {
   title: "Đăng ký | HUCE KMS",
-  description: "Đăng ký tài khoản sinh viên Trường Đại học Xây dựng Hà Nội",
+  description: "Đăng ký tài khoản hệ thống HUCE KMS",
 }
 
 export default function RegisterPage() {
   return (
     <Card className="border-border shadow-xs">
-      <CardHeader className="space-y-1 text-center">
+      <CardHeader className="text-center pb-2">
         <CardTitle className="font-heading text-xl font-bold text-heading">
-          Đăng ký tài khoản mới
+          Tạo tài khoản
         </CardTitle>
-        <CardDescription className="text-xs">
-          Dành cho sinh viên, giảng viên và cán bộ Trường Đại học Xây dựng Hà Nội
-        </CardDescription>
       </CardHeader>
 
       <CardContent>

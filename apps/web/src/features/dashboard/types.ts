@@ -1,15 +1,15 @@
-export interface DashboardMetrics {
-  totalDocuments: number
-  totalChunks: number
-  totalUsers: number
-  totalConversations: number
-  activeCrawlers: number
-  indexedPercentage: number
+export interface ServiceStatus {
+  name: string
+  status: "healthy" | "degraded" | "down" | string
+  latency_ms?: number
+  details?: string
 }
 
-export interface SystemHealth {
-  apiStatus: "HEALTHY" | "DEGRADED" | "DOWN"
-  databaseStatus: "CONNECTED" | "DISCONNECTED"
-  vectorDbStatus: "CONNECTED" | "DISCONNECTED"
-  uptimeSeconds: number
+export interface DashboardStats {
+  total_documents: number
+  total_chunks: number
+  total_users: number
+  active_users: number
+  total_categories: number
+  services: ServiceStatus[]
 }

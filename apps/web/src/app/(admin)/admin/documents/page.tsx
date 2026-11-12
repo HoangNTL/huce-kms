@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { FileText, Plus, Search, ExternalLink, Trash2, RotateCcw } from "lucide-react"
+import { FileText, Plus, Search, ExternalLink, Trash2, RotateCcw, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardContent } from "@/components/ui/card"
@@ -24,86 +24,107 @@ import {
 import {
   DocumentStatusBadge,
   DocumentUploadModal,
+  documentService,
   type DocumentMetadata,
+  type CategoryItem,
 } from "@/features/documents"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
 
-const sampleDocuments: DocumentMetadata[] = [
-  {
-    id: "doc-01",
-    title: "Quy chế đào tạo trình độ đại học chính quy 2024",
-    fileName: "quy_che_dao_tao_2024.pdf",
-    fileSize: 2450000,
-    fileType: "application/pdf",
-    category: "Quy chế",
-    status: "INDEXED",
-    chunkCount: 148,
-    createdAt: "2024-03-01",
-  },
-  {
-    id: "doc-02",
-    title: "Hướng dẫn thực hiện đồ án tốt nghiệp khóa 65",
-    fileName: "huong_dan_do_an_k65.docx",
-    fileSize: 1120000,
-    fileType: "application/docx",
-    category: "Hướng dẫn",
-    status: "INDEXED",
-    chunkCount: 92,
-    createdAt: "2024-03-10",
-  },
-  {
-    id: "doc-03",
-    title: "Quyết định mức thu học phí năm học 2024-2025",
-    fileName: "qd_hoc_phi_2024.pdf",
-    fileSize: 850000,
-    fileType: "application/pdf",
-    category: "Quy định",
-    status: "PROCESSING",
-    chunkCount: 0,
-    createdAt: "2024-03-15",
-  },
-]
+const DOCUMENT_STATUS_OPTIONS: Record<string, string> = {
+  ALL: "Tất cả trạng thái",
+  INDEXED: "Đã lập chỉ mục",
+  UPLOADED: "Bản nháp",
+  PROCESSING: "Đang xử lý",
+  FAILED: "Lỗi",
+}
 
 export default function AdminDocumentsPage() {
-  const [documents, setDocuments] = React.useState<DocumentMetadata[]>(sampleDocuments)
+  const [documents, setDocuments] = React.useState<DocumentMetadata[]>([])
+  const [categories, setCategories] = React.useState<CategoryItem[]>([])
   const [isUploadOpen, setIsUploadOpen] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(true)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState<string>("ALL")
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL")
   const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(5)
+  const [pageSize, setPageSize] = React.useState(10)
+  const [totalItems, setTotalItems] = React.useState(0)
+  const [refreshKey, setRefreshKey] = React.useState(0)
 
-  const handleDelete = (id: string, title: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== id))
-    toast.success("Đã xóa tài liệu khỏi cơ sở tri thức", {
-      description: `Tài liệu "${title}" đã được loại bỏ.`,
-    })
+  const categoryOptions: Record<string, string> = React.useMemo(() => {
+    const map: Record<string, string> = { ALL: "Tất cả danh mục" }
+    for (const cat of categories) {
+      map[String(cat.id)] = cat.name
+    }
+    return map
+  }, [categories])
+
+  // Load categories once
+  React.useEffect(() => {
+    let ignore = false
+    documentService
+      .getCategories()
+      .then((cats) => {
+        if (!ignore) setCategories(cats || [])
+      })
+      .catch(() => {
+        if (!ignore) setCategories([])
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  // Fetch documents from real API
+  React.useEffect(() => {
+    let ignore = false
+    documentService
+      .getDocuments({
+        page: currentPage,
+        pageSize,
+        search: searchTerm.trim() || undefined,
+        category_id: categoryFilter !== "ALL" ? categoryFilter : undefined,
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+      })
+      .then((res) => {
+        if (!ignore) {
+          setDocuments(res.items)
+          setTotalItems(res.total)
+          setIsLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          toast.error("Không thể tải danh sách tài liệu", {
+            description: err instanceof Error ? err.message : "Lỗi kết nối máy chủ.",
+          })
+          setIsLoading(false)
+        }
+      })
+    return () => {
+      ignore = true
+    }
+  }, [currentPage, pageSize, searchTerm, categoryFilter, statusFilter, refreshKey])
+
+  const handleDelete = async (id: string | number, title: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa tài liệu "${title}" và toàn bộ vector embeddings liên quan không?`)) {
+      return
+    }
+
+    try {
+      await documentService.deleteDocument(id)
+      toast.success("Đã xóa tài liệu khỏi cơ sở tri thức", {
+        description: `Tài liệu "${title}" đã được loại bỏ hoàn toàn.`,
+      })
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast.error("Xóa tài liệu thất bại", {
+        description: err instanceof Error ? err.message : "Lỗi kết nối máy chủ.",
+      })
+    }
   }
-
-  const filteredDocs = React.useMemo(() => {
-    return documents.filter((d) => {
-      const matchSearch =
-        d.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.fileName.toLowerCase().includes(searchTerm.toLowerCase())
-
-      const matchCategory = categoryFilter === "ALL" || d.category === categoryFilter
-      const matchStatus = statusFilter === "ALL" || d.status === statusFilter
-
-      return matchSearch && matchCategory && matchStatus
-    })
-  }, [documents, searchTerm, categoryFilter, statusFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filteredDocs.length / pageSize))
-  const validPage = Math.min(currentPage, totalPages)
-
-  // Paginated slice
-  const paginatedDocs = React.useMemo(() => {
-    const start = (validPage - 1) * pageSize
-    return filteredDocs.slice(start, start + pageSize)
-  }, [filteredDocs, validPage, pageSize])
 
   const hasActiveFilters = searchTerm !== "" || categoryFilter !== "ALL" || statusFilter !== "ALL"
 
@@ -114,7 +135,7 @@ export default function AdminDocumentsPage() {
         <div>
           <h2 className="font-heading text-xl font-bold text-heading">Quản lý Tài liệu Tri thức</h2>
           <p className="text-xs text-muted">
-            Quản trị kho văn bản nguồn, kiểm soát trạng thái lập chỉ mục Vector và trích xuất chunks
+            Quản trị kho văn bản nguồn, kiểm soát trạng thái lập chỉ mục Vector và trích xuất chunks ({totalItems} tài liệu)
           </p>
         </div>
         <Button
@@ -129,11 +150,11 @@ export default function AdminDocumentsPage() {
       <Card className="border-border shadow-xs">
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            {/* Search Input with perfect vertical centering */}
+            {/* Search Input */}
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
               <Input
-                placeholder="Tìm kiếm tài liệu, danh mục..."
+                placeholder="Tìm kiếm tài liệu..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value)
@@ -146,6 +167,7 @@ export default function AdminDocumentsPage() {
             {/* Filter toolbar */}
             <div className="flex flex-wrap items-center gap-2">
               <Select
+                items={categoryOptions}
                 value={categoryFilter}
                 onValueChange={(val) => {
                   setCategoryFilter(val ?? "ALL")
@@ -153,17 +175,22 @@ export default function AdminDocumentsPage() {
                 }}
               >
                 <SelectTrigger className="h-8 min-w-36 text-xs">
-                  <SelectValue placeholder="Tất cả danh mục" />
+                  <SelectValue placeholder="Tất cả danh mục">
+                    {(val) => categoryOptions[String(val)] || "Tất cả danh mục"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Tất cả danh mục</SelectItem>
-                  <SelectItem value="Quy chế">Quy chế</SelectItem>
-                  <SelectItem value="Hướng dẫn">Hướng dẫn</SelectItem>
-                  <SelectItem value="Quy định">Quy định</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={String(cat.id)} value={String(cat.id)}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
               <Select
+                items={DOCUMENT_STATUS_OPTIONS}
                 value={statusFilter}
                 onValueChange={(val) => {
                   setStatusFilter(val ?? "ALL")
@@ -171,11 +198,14 @@ export default function AdminDocumentsPage() {
                 }}
               >
                 <SelectTrigger className="h-8 min-w-36 text-xs">
-                  <SelectValue placeholder="Tất cả trạng thái" />
+                  <SelectValue placeholder="Tất cả trạng thái">
+                    {(val) => DOCUMENT_STATUS_OPTIONS[String(val)] || "Tất cả trạng thái"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
                   <SelectItem value="INDEXED">Đã lập chỉ mục</SelectItem>
+                  <SelectItem value="UPLOADED">Bản nháp</SelectItem>
                   <SelectItem value="PROCESSING">Đang xử lý</SelectItem>
                   <SelectItem value="FAILED">Lỗi</SelectItem>
                 </SelectContent>
@@ -215,42 +245,59 @@ export default function AdminDocumentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedDocs.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-xs text-muted">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+                      <span>Đang tải danh sách tài liệu từ cơ sở dữ liệu...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : documents.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-32 text-center text-xs text-muted">
                     Không tìm thấy tài liệu nào phù hợp với bộ lọc hiện tại.
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedDocs.map((doc, idx) => {
+                documents.map((doc, idx) => {
                   const stt = (currentPage - 1) * pageSize + idx + 1
+                  const categoryName =
+                    typeof doc.category === "object" && doc.category?.name
+                      ? doc.category.name
+                      : typeof doc.category === "string"
+                        ? doc.category
+                        : "Chung"
+                  const file_size_mb = doc.file_size
+                    ? (doc.file_size / 1024 / 1024).toFixed(2)
+                    : "0.00"
+
                   return (
-                    <TableRow key={doc.id}>
+                    <TableRow key={String(doc.id)}>
                       <TableCell className="w-14 text-center font-medium text-muted">
                         {stt}
                       </TableCell>
                       <TableCell className="text-xs font-medium text-heading">
                         <Link
-                          href={ROUTES.ADMIN.DOCUMENT_DETAIL(doc.id)}
+                          href={ROUTES.ADMIN.DOCUMENT_DETAIL(String(doc.id))}
                           className="flex items-center gap-1.5 hover:text-brand-primary hover:underline"
                         >
                           <FileText className="h-3.5 w-3.5 shrink-0 text-brand-primary" />
                           <span className="max-w-xs truncate">{doc.title}</span>
                         </Link>
                       </TableCell>
-                      <TableCell className="text-xs text-muted">{doc.category}</TableCell>
-                      <TableCell className="text-xs text-muted">
-                        {(doc.fileSize / 1024 / 1024).toFixed(2)} MB
-                      </TableCell>
+                      <TableCell className="text-xs text-muted">{categoryName}</TableCell>
+                      <TableCell className="text-xs text-muted">{file_size_mb} MB</TableCell>
                       <TableCell className="text-xs font-semibold text-heading">
-                        {doc.chunkCount}
+                        {doc.chunk_count ?? 0}
                       </TableCell>
                       <TableCell>
                         <DocumentStatusBadge status={doc.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Link href={ROUTES.ADMIN.DOCUMENT_DETAIL(doc.id)}>
+                          <Link href={ROUTES.ADMIN.DOCUMENT_DETAIL(String(doc.id))}>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -280,9 +327,9 @@ export default function AdminDocumentsPage() {
 
           {/* Table Footer with Pagination & Result Count */}
           <DataTablePagination
-            currentPage={validPage}
+            currentPage={currentPage}
             pageSize={pageSize}
-            totalItems={filteredDocs.length}
+            totalItems={totalItems}
             onPageChange={setCurrentPage}
             onPageSizeChange={(newSize) => {
               setPageSize(newSize)
@@ -298,7 +345,7 @@ export default function AdminDocumentsPage() {
         onOpenChange={setIsUploadOpen}
         onSuccess={() => {
           setIsUploadOpen(false)
-          toast.success("Tải lên và lập chỉ mục tài liệu thành công")
+          setRefreshKey((k) => k + 1)
         }}
       />
     </div>

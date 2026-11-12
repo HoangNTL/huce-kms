@@ -1,22 +1,49 @@
-export type DocumentStatus = "UPLOADED" | "PROCESSING" | "INDEXED" | "FAILED"
+export type DocumentStatus =
+  | "pending"
+  | "processing"
+  | "indexed"
+  | "failed"
+  | "UPLOADED"
+  | "PROCESSING"
+  | "INDEXED"
+  | "FAILED"
+
+export interface CategoryItem {
+  id: number | string
+  name: string
+  code?: string
+  description?: string | null
+}
 
 export interface DocumentMetadata {
-  id: string
+  id: string | number
   title: string
-  fileName: string
-  fileSize: number
-  fileType: string
-  category: string
+  file_name: string
+  file_path?: string
+  file_size: number
+  file_type: string
+  file_hash?: string
+  category?: string | CategoryItem | null
+  category_id?: number | null
   status: DocumentStatus
-  chunkCount: number
-  createdAt: string
-  updatedAt?: string
+  chunk_count: number
+  total_pages: number
+  error_message?: string | null
+  uploader_id?: number | null
+  created_at: string
+  updated_at?: string
 }
 
 export interface DocumentChunk {
   id: string
-  documentId: string
-  chunkIndex: number
+  document_id: string | number
+  chunk_index: number
   content: string
-  tokenCount: number
+  token_count: number
+  page_number: number
+  created_at?: string
+}
+
+export interface DocumentDetail extends DocumentMetadata {
+  chunks?: DocumentChunk[]
 }
