@@ -23,7 +23,7 @@ export const documentService = {
       }
     }
 
-    const res = await apiClient.get<BackendPaginatedResponse>("/documents", { params: queryParams })
+    const res = await apiClient.get<BackendPaginatedResponse>("/documents/", { params: queryParams })
 
     // Normalize PaginatedData from backend
     const items: DocumentMetadata[] = (res?.items || []).map((doc) => {

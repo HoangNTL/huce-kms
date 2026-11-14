@@ -68,6 +68,11 @@ async def upload_document(
 
 
 @router.get(
+    "",
+    response_model=BaseResponse[PaginatedData[DocumentResponse]],
+    include_in_schema=False,
+)
+@router.get(
     "/",
     response_model=BaseResponse[PaginatedData[DocumentResponse]],
     status_code=status.HTTP_200_OK,

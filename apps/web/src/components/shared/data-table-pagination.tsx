@@ -29,6 +29,10 @@ export function DataTablePagination({
   onPageSizeChange,
   pageSizeOptions = [5, 10, 20, 50],
 }: DataTablePaginationProps) {
+  if (totalItems <= 0) {
+    return null
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, totalItems)
@@ -66,8 +70,8 @@ export function DataTablePagination({
       <div className="text-xs text-muted">
         {totalItems > 0 ? (
           <>
-            Hiển thị <span className="font-semibold text-heading">{startItem}</span> -{" "}
-            <span className="font-semibold text-heading">{endItem}</span> trên tổng số{" "}
+            <span className="font-semibold text-heading">{startItem} - {endItem}</span>
+            {" / "}
             <span className="font-semibold text-heading">{totalItems}</span> bản ghi
           </>
         ) : (
@@ -102,7 +106,6 @@ export function DataTablePagination({
           <PaginationContent className="gap-1">
             <PaginationItem>
               <PaginationPrevious
-                text="Trước"
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage <= 1}
               />
@@ -130,7 +133,6 @@ export function DataTablePagination({
 
             <PaginationItem>
               <PaginationNext
-                text="Sau"
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage >= totalPages}
               />

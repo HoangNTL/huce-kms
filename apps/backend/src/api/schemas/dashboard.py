@@ -14,4 +14,6 @@ class DashboardStatsResponse(BaseModel):
     total_users: int = Field(default=0, description="Total registered accounts")
     active_users: int = Field(default=0, description="Total active accounts")
     total_categories: int = Field(default=0, description="Total document categories")
+    total_file_size_bytes: int = Field(default=0, description="Total storage bytes of documents")
+    indexed_documents: int = Field(default=0, description="Total documents successfully indexed")
     services: list[ServiceStatus] = Field(default_factory=list, description="Platform infrastructure health")

@@ -16,7 +16,7 @@ interface ChatComposerProps {
 export function ChatComposer({
   onSend,
   disabled = false,
-  placeholder = "Hỏi về quy chế đào tạo, học bổng, đồ án tốt nghiệp HUCE...",
+  placeholder = "Nhập câu hỏi của bạn...",
   className,
 }: ChatComposerProps) {
   const [input, setInput] = React.useState("")
@@ -39,7 +39,7 @@ export function ChatComposer({
   return (
     <div
       className={cn(
-        "relative rounded-xl border border-border bg-surface p-2 shadow-xs transition-all focus-within:border-brand-primary focus-within:ring-1 focus-within:ring-brand-primary",
+        "relative rounded-2xl border border-slate-200/90 bg-surface p-3 shadow-xs transition-all focus-within:border-brand-primary focus-within:ring-1 focus-within:ring-brand-primary",
         className
       )}
     >
@@ -51,24 +51,20 @@ export function ChatComposer({
         placeholder={placeholder}
         disabled={disabled}
         rows={2}
-        className="min-h-[50px] resize-none border-0 bg-transparent p-2 text-sm text-heading placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:outline-none"
+        className="min-h-[50px] resize-none border-0 bg-transparent p-1 text-sm text-heading placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-0 focus-visible:outline-none"
       />
-      <div className="flex items-center justify-between border-t border-border/50 px-2 pt-2">
-        <p className="flex items-center gap-1 text-[11px] text-muted">
-          <span>Nhấn</span>
-          <kbd className="rounded border border-border bg-surface px-1 py-0.5 text-[10px] font-semibold text-muted">
-            Enter ↵
-          </kbd>
-          <span>để gửi, Shift + Enter để xuống dòng</span>
-        </p>
+      <div className="flex items-center justify-between pt-2">
+        <span className="text-[11px] text-muted hidden sm:inline">
+          Shift + Enter để xuống dòng
+        </span>
 
         <Button
-          size="sm"
+          size="icon"
           onClick={handleSend}
           disabled={!input.trim() || disabled}
-          className="h-8 gap-1.5 bg-brand-primary text-xs text-white hover:bg-brand-primary-hover"
+          className="h-8 w-8 rounded-xl bg-brand-primary text-white shadow-xs hover:bg-brand-primary-hover disabled:opacity-30 ml-auto"
+          aria-label="Gửi câu hỏi"
         >
-          <span>Gửi</span>
           <Send className="h-3.5 w-3.5" />
         </Button>
       </div>

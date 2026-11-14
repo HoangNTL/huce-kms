@@ -65,7 +65,7 @@ class DocumentRepository(BaseRepository[Document]):
         if category_id is not None:
             filters.append(Document.category_id == category_id)
         if status is not None:
-            filters.append(Document.status == status)
+            filters.append(func.lower(Document.status) == status.strip().lower())
         if query:
             filters.append(
                 or_(

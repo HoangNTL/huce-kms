@@ -41,7 +41,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
     const map: Record<string, string> = {
       "1": "Quy chế Đào tạo",
       "2": "Quy chế Sinh viên",
-      "3": "Học bổng & Học phí",
+      "3": "Học bổng, học phí",
       "4": "Biểu mẫu Hành chính",
     }
     for (const cat of categories) {
@@ -111,27 +111,26 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base text-brand-primary">
-            <UploadCloud className="h-5 w-5" />
-            <span>Tải lên Tài liệu Tri thức Mới</span>
+          <DialogTitle className="font-heading text-lg font-bold text-heading">
+            Tải lên tài liệu
           </DialogTitle>
-          <DialogDescription>
-            Hệ thống hỗ trợ các định dạng .PDF, .TXT, .MD (Tối đa 25MB). Sau khi tải lên, tài liệu
-            sẽ tự động được làm sạch, phân mảnh cấu trúc và nạp vào vector database.
+          <DialogDescription className="sr-only">
+            Tải lên tài liệu vào cơ sở tri thức hệ thống
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="doc-title">Tên văn bản / Tiêu đề</Label>
+            <Label htmlFor="doc-title" className="text-xs">Tên tài liệu</Label>
             <Input
               id="doc-title"
-              placeholder="Nhập tiêu đề tài liệu (mặc định lấy tên tệp)"
+              placeholder="Nhập tên tài liệu..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               disabled={isLoading}
+              className="rounded-xl text-xs"
             />
           </div>
 
@@ -158,7 +157,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
                   <>
                     <SelectItem value="1">Quy chế Đào tạo</SelectItem>
                     <SelectItem value="2">Quy chế Sinh viên</SelectItem>
-                    <SelectItem value="3">Học bổng & Học phí</SelectItem>
+                    <SelectItem value="3">Học bổng, học phí</SelectItem>
                     <SelectItem value="4">Biểu mẫu Hành chính</SelectItem>
                   </>
                 )}
@@ -205,15 +204,22 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
         </div>
 
         <DialogFooter className="mt-2 gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={isLoading}
+            className="rounded-xl text-xs"
+          >
             Hủy
           </Button>
           <Button
+            size="sm"
             onClick={handleUpload}
             disabled={!file || isLoading}
-            className="bg-brand-primary text-white hover:bg-brand-primary-hover"
+            className="rounded-xl bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
           >
-            {isLoading ? "Đang tải lên & index..." : "Tải lên & Xử lý"}
+            {isLoading ? "Đang tải lên..." : "Tải lên"}
           </Button>
         </DialogFooter>
       </DialogContent>

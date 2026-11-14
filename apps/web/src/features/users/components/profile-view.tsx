@@ -1,32 +1,20 @@
 "use client"
 
 import * as React from "react"
-import { ShieldCheck, User, KeyRound, Check, LogOut } from "lucide-react"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/sonner"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { userService } from "@/features/users/services/user-service"
-import { USER_ROLES, ROLE_LABELS } from "@/types/user"
 
 export function ProfileView() {
-  const { user, fetchCurrentUser, logout } = useAuthStore()
+  const { user, fetchCurrentUser } = useAuthStore()
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
-
-  const isAdmin = user?.role === USER_ROLES.ADMIN
 
   React.useEffect(() => {
     if (!user) {
@@ -67,104 +55,56 @@ export function ProfileView() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-4 sm:p-6">
-      {/* Header */}
+      {/* Header: Clean & Unified */}
       <div>
-        <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
-          {isAdmin ? "Hồ sơ Quản trị viên" : "Hồ sơ cá nhân"}
+        <h1 className="font-heading text-2xl font-bold tracking-tight text-heading">
+          Tài khoản
         </h1>
-        <p className="mt-1 text-xs text-muted">
-          {isAdmin
-            ? "Thông tin quyền hạn và cấu hình bảo mật tài khoản quản trị hệ thống HUCE KMS"
-            : "Quản lý thông tin tài khoản và bảo mật của bạn trong hệ thống HUCE KMS"}
-        </p>
       </div>
 
       {/* Account Info Card */}
-      <Card className="border-border shadow-xs">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div className="flex items-center gap-2">
-            {isAdmin ? (
-              <ShieldCheck className="h-5 w-5 text-brand-primary" />
-            ) : (
-              <User className="h-5 w-5 text-brand-primary" />
-            )}
-            <div>
-              <CardTitle className="text-base font-bold text-heading">
-                {isAdmin ? "Thông tin Quản trị viên" : "Thông tin tài khoản"}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAdmin
-                  ? "Tài khoản có toàn quyền quản lý dữ liệu tri thức, tài khoản và hệ thống crawler"
-                  : "Thông tin định danh liên kết từ hệ thống HUCE-KMS"}
-              </CardDescription>
-            </div>
-          </div>
-          <Badge
-            variant={isAdmin ? "default" : "secondary"}
-            className={isAdmin ? "bg-brand-primary text-white" : ""}
-          >
-            {user?.role ? ROLE_LABELS[user.role] : "Người dùng"}
-          </Badge>
-        </CardHeader>
+      <Card className="rounded-2xl border border-slate-200/80 bg-surface shadow-xs py-0 gap-0">
+        <div className="border-b border-border/50 px-6 py-4">
+          <h2 className="text-base font-bold text-heading">
+            Thông tin tài khoản
+          </h2>
+        </div>
 
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="p-6 grid gap-4 sm:grid-cols-2">
           <div>
-            <Label className="text-muted">Họ và tên</Label>
+            <Label className="text-xs text-muted">Họ và tên</Label>
             <p className="mt-1 text-sm font-semibold text-heading">
               {user?.full_name || "Chưa cập nhật"}
             </p>
           </div>
           <div>
-            <Label className="text-muted">{isAdmin ? "Tên đăng nhập" : "Tên tài khoản"}</Label>
+            <Label className="text-xs text-muted">Tên đăng nhập</Label>
             <p className="mt-1 font-mono text-sm font-semibold text-heading">
               {user?.username || "—"}
             </p>
           </div>
           <div>
-            <Label className="text-muted">{isAdmin ? "Email quản trị" : "Email liên hệ"}</Label>
+            <Label className="text-xs text-muted">Email</Label>
             <p className="mt-1 text-sm font-semibold text-heading">{user?.email || "—"}</p>
           </div>
           <div>
-            <Label className="text-muted">Trạng thái tài khoản</Label>
+            <Label className="text-xs text-muted">Trạng thái tài khoản</Label>
             <p className="mt-1 text-sm font-semibold text-emerald-600">
               {user?.is_active !== false ? "Đang hoạt động" : "Bị khóa"}
             </p>
           </div>
         </CardContent>
-
-        <CardFooter className="flex items-center justify-between border-t border-border/50 pt-4">
-          <span className="text-xs text-muted">
-            {isAdmin ? "Phiên làm việc bảo mật cao" : "Đã xác thực định danh"}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => logout()}
-            className="text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-border"
-          >
-            <LogOut className="mr-1.5 h-3.5 w-3.5" />
-            Đăng xuất tài khoản
-          </Button>
-        </CardFooter>
       </Card>
 
       {/* Security / Password Change Card */}
-      <Card className="border-border shadow-xs">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <KeyRound className="h-5 w-5 text-brand-primary" />
-            <CardTitle className="text-base font-bold text-heading">
-              {isAdmin ? "Đổi mật khẩu Quản trị" : "Đổi mật khẩu"}
-            </CardTitle>
-          </div>
-          <CardDescription className="text-xs">
-            {isAdmin
-              ? "Yêu cầu đổi mật khẩu định kỳ để đảm bảo an toàn cơ sở tri thức"
-              : "Cập nhật mật khẩu để tăng cường tính bảo mật cho tài khoản"}
-          </CardDescription>
-        </CardHeader>
+      <Card className="rounded-2xl border border-slate-200/80 bg-surface shadow-xs py-0 gap-0">
+        <div className="border-b border-border/50 px-6 py-4">
+          <h2 className="text-base font-bold text-heading">
+            Đổi mật khẩu
+          </h2>
+        </div>
 
-        <CardContent>
+        <CardContent className="p-6">
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="current-pw" className="text-xs">
@@ -177,6 +117,7 @@ export function ProfileView() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 disabled={isLoading}
+                className="rounded-xl text-xs"
               />
             </div>
 
@@ -192,6 +133,7 @@ export function ProfileView() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   disabled={isLoading}
+                  className="rounded-xl text-xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -205,6 +147,7 @@ export function ProfileView() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isLoading}
+                  className="rounded-xl text-xs"
                 />
               </div>
             </div>
@@ -212,11 +155,10 @@ export function ProfileView() {
             <Button
               type="submit"
               size="sm"
-              className="bg-brand-primary text-white hover:bg-brand-primary-hover"
+              className="rounded-xl bg-brand-primary text-xs font-medium text-white hover:bg-brand-primary-hover shadow-xs"
               disabled={isLoading}
             >
-              <Check className="mr-1.5 h-4 w-4" />
-              {isLoading ? "Đang xử lý..." : "Cập nhật mật khẩu"}
+              {isLoading ? "Đang xử lý..." : "Đổi mật khẩu"}
             </Button>
           </form>
         </CardContent>

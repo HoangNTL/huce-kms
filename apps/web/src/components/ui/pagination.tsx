@@ -66,35 +66,35 @@ function PaginationLink({
 
 function PaginationPrevious({
   className,
-  text = "Trước",
+  text,
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
       aria-label="Về trang trước"
-      size="default"
-      className={cn("gap-1 px-2.5 text-xs", className)}
+      size={text ? "default" : "icon"}
+      className={cn(text ? "gap-1 px-2.5 text-xs" : "h-8 w-8 p-0", className)}
       {...props}
     >
       <ChevronLeftIcon className="h-3.5 w-3.5" />
-      <span className="hidden sm:inline">{text}</span>
+      {text && <span className="hidden sm:inline">{text}</span>}
     </PaginationLink>
   )
 }
 
 function PaginationNext({
   className,
-  text = "Sau",
+  text,
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
       aria-label="Sang trang sau"
-      size="default"
-      className={cn("gap-1 px-2.5 text-xs", className)}
+      size={text ? "default" : "icon"}
+      className={cn(text ? "gap-1 px-2.5 text-xs" : "h-8 w-8 p-0", className)}
       {...props}
     >
-      <span className="hidden sm:inline">{text}</span>
+      {text && <span className="hidden sm:inline">{text}</span>}
       <ChevronRightIcon className="h-3.5 w-3.5" />
     </PaginationLink>
   )

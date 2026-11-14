@@ -86,7 +86,7 @@ export function UserDropdownMenu({ context = "user" }: UserDropdownMenuProps) {
           }
         >
           <User className="h-4 w-4 text-muted" />
-          <span>Hồ sơ tài khoản</span>
+          <span>Tài khoản</span>
         </DropdownMenuItem>
 
         {/* Context switch (Single clean location - no header duplication) */}

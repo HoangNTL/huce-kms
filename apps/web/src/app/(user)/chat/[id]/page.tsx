@@ -49,21 +49,16 @@ export default function ChatDetailPage({ params }: ChatDetailPageProps) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-between p-4 sm:p-6 lg:p-8">
       {/* Thread title header */}
-      <div className="mb-4 flex items-center justify-between border-b border-border/50 pb-3 text-xs text-muted">
-        <span>Phiên hỏi đáp #{threadId}</span>
-        <span className="flex items-center gap-1.5 text-[11px]">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          RAG Pipeline (FastAPI + Qdrant + Gemini)
-        </span>
+      <div className="mb-4 border-b border-border/50 pb-3 text-xs font-medium text-muted">
+        Hỏi đáp quy chế, tài liệu
       </div>
 
       {/* Message history */}
       <div className="flex-1 space-y-6 overflow-y-auto pb-6">
         {messages.length === 0 ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2 text-center text-xs text-muted">
-            <Sparkles className="h-8 w-8 text-brand-primary/50" />
-            <p className="font-medium text-heading">Bắt đầu phiên hỏi đáp mới</p>
-            <p>Nhập câu hỏi bên dưới để tra cứu quy chế, thông báo và văn bản HUCE.</p>
+            <p className="font-medium text-heading text-sm">Bắt đầu phiên hỏi đáp</p>
+            <p className="text-xs text-muted">Nhập câu hỏi bên dưới để tra cứu thông tin nhanh chóng.</p>
           </div>
         ) : (
           messages.map((msg) => (

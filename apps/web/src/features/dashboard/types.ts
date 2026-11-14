@@ -11,5 +11,7 @@ export interface DashboardStats {
   total_users: number
   active_users: number
   total_categories: number
+  total_file_size_bytes?: number
+  indexed_documents?: number
   services: ServiceStatus[]
 }

@@ -7,7 +7,8 @@ interface DocumentStatusBadgeProps {
 }
 
 export function DocumentStatusBadge({ status }: DocumentStatusBadgeProps) {
-  switch (status) {
+  const norm = (status || "").toUpperCase()
+  switch (norm) {
     case "INDEXED":
       return (
         <Badge variant="default" className="border-success/30 bg-success/15 text-success">
@@ -24,6 +25,7 @@ export function DocumentStatusBadge({ status }: DocumentStatusBadgeProps) {
         </Badge>
       )
     case "UPLOADED":
+    case "PENDING":
       return (
         <Badge variant="outline" className="text-muted">
           Đã tải lên
