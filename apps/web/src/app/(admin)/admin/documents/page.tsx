@@ -3,10 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import {
-  FileText,
   Plus,
   Search,
-  Eye,
   Trash2,
   RotateCcw,
   Loader2,
@@ -165,9 +163,9 @@ export default function AdminDocumentsPage() {
       {/* Page Title: Clean & Focused */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-heading text-2xl font-bold tracking-tight text-heading">
+          <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
             Quản lý Tài liệu Tri thức
-          </h2>
+          </h1>
         </div>
         <Button
           onClick={() => setIsUploadOpen(true)}
@@ -206,12 +204,12 @@ export default function AdminDocumentsPage() {
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 min-w-36 rounded-xl text-xs">
+                <SelectTrigger className="h-8 min-w-40 rounded-xl text-xs">
                   <SelectValue placeholder="Tất cả danh mục">
                     {(val) => categoryOptions[String(val)] || "Tất cả danh mục"}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent align="start" className="min-w-56">
                   <SelectItem value="ALL">Tất cả danh mục</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={String(cat.id)} value={String(cat.id)}>
@@ -234,7 +232,7 @@ export default function AdminDocumentsPage() {
                     {(val) => DOCUMENT_STATUS_OPTIONS[String(val)] || "Tất cả trạng thái"}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent align="start" className="min-w-44">
                   <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
                   <SelectItem value="INDEXED">Đã lập chỉ mục</SelectItem>
                   <SelectItem value="UPLOADED">Bản nháp</SelectItem>
@@ -340,18 +338,14 @@ export default function AdminDocumentsPage() {
                           {stt}
                         </TableCell>
 
-                        {/* Column Tên tài liệu: File icon + Link */}
+                        {/* Column Tên tài liệu: Clean Text Link */}
                         <TableCell>
                           <Link
                             href={ROUTES.ADMIN.DOCUMENT_DETAIL(String(doc.id))}
-                            className="group flex items-center gap-2.5 text-xs font-semibold text-slate-900 transition-colors hover:text-brand-primary"
+                            className="block max-w-md truncate text-xs font-medium text-heading transition-colors hover:text-brand-primary"
+                            title={doc.title}
                           >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-indigo-100 bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">
-                              <FileText className="h-3.5 w-3.5" />
-                            </div>
-                            <span className="max-w-xs truncate" title={doc.title}>
-                              {doc.title}
-                            </span>
+                            {doc.title}
                           </Link>
                         </TableCell>
 
@@ -365,11 +359,9 @@ export default function AdminDocumentsPage() {
                           {formatBytes(doc.file_size)}
                         </TableCell>
 
-                        {/* Column Số chunks */}
-                        <TableCell>
-                          <span className="rounded-md border border-slate-200/80 bg-slate-50 px-2 py-0.5 font-mono text-xs font-medium text-slate-600">
-                            {doc.chunk_count ?? 0}
-                          </span>
+                        {/* Column Số chunks: Plain count */}
+                        <TableCell className="text-xs font-medium text-slate-600">
+                          {doc.chunk_count ?? 0}
                         </TableCell>
 
                         {/* Column Trạng thái */}
@@ -377,29 +369,17 @@ export default function AdminDocumentsPage() {
                           <DocumentStatusBadge status={doc.status} />
                         </TableCell>
 
-                        {/* Column Thao tác: Modern Icon Buttons */}
+                        {/* Column Thao tác */}
                         <TableCell className="text-right pr-5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Link href={ROUTES.ADMIN.DOCUMENT_DETAIL(String(doc.id))}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg border border-slate-200/70 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                                title="Xem chi tiết chunks"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
-                            </Link>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
-                              className="h-8 w-8 rounded-lg border border-rose-200/70 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition-colors"
-                              title="Xóa tài liệu"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
+                            className="h-8 w-8 rounded-lg border border-rose-200/70 bg-rose-50/50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700"
+                            title="Xóa tài liệu"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     )

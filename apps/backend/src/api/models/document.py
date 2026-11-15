@@ -23,8 +23,8 @@ class Document(Base, TimestampMixin):
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
 
-    # Ingestion Status: "UPLOADED" | "PROCESSING" | "INDEXED" | "FAILED"
-    status: Mapped[str] = mapped_column(String(20), default="UPLOADED", nullable=False, index=True)
+    # Ingestion Status: "uploaded" | "pending" | "processing" | "indexed" | "failed"
+    status: Mapped[str] = mapped_column(String(20), default="uploaded", nullable=False, index=True)
 
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="CASCADE"),

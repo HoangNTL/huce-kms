@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.schemas.category import CategoryResponse
 
-DocumentStatus = Literal["pending", "processing", "indexed", "failed"]
+DocumentStatus = Literal["uploaded", "pending", "processing", "indexed", "failed"]
 
 
 class DocumentChunkResponse(BaseModel):
@@ -50,6 +50,13 @@ class DocumentResponse(DocumentBase):
     category: CategoryResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v: Any) -> str:
+        if isinstance(v, str):
+            return v.lower().strip()
+        return v
 
 
 class DocumentDetailResponse(DocumentResponse):

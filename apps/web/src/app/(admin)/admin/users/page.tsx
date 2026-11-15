@@ -5,7 +5,6 @@ import {
   Search,
   RotateCcw,
   Loader2,
-  Eye,
   Lock,
   Unlock,
   ShieldCheck,
@@ -67,7 +66,6 @@ export default function AdminUsersPage() {
   const [refreshKey, setRefreshKey] = React.useState(0)
 
   // Dialog States
-  const [viewUser, setViewUser] = React.useState<UserProfile | null>(null)
   const [toggleTarget, setToggleTarget] = React.useState<UserProfile | null>(null)
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false)
 
@@ -136,9 +134,9 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       {/* Page Title: Clean & Focused */}
       <div>
-        <h2 className="font-heading text-xl font-bold tracking-tight text-heading">
+        <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
           Quản lý Tài khoản
-        </h2>
+        </h1>
       </div>
 
       <Card className="rounded-2xl border border-slate-200/80 bg-surface shadow-xs py-0 gap-0">
@@ -328,39 +326,25 @@ export default function AdminUsersPage() {
                           )}
                         </TableCell>
 
-                        {/* Column Thao tác: Modern Icon Buttons as in Reference Image 2 */}
+                        {/* Column Thao tác */}
                         <TableCell className="text-right pr-5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* View info button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setViewUser(user)}
-                              title="Xem thông tin chi tiết"
-                              className="h-8 w-8 rounded-lg border border-slate-200/70 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-
-                            {/* Lock / Unlock button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setToggleTarget(user)}
-                              title={isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-                              className={`h-8 w-8 rounded-lg border transition-colors ${
-                                isActive
-                                  ? "border-rose-200/70 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
-                                  : "border-emerald-200/70 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
-                              }`}
-                            >
-                              {isActive ? (
-                                <Lock className="h-3.5 w-3.5" />
-                              ) : (
-                                <Unlock className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setToggleTarget(user)}
+                            title={isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                            className={`h-8 w-8 rounded-lg border transition-colors ${
+                              isActive
+                                ? "border-rose-200/70 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+                                : "border-emerald-200/70 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
+                            }`}
+                          >
+                            {isActive ? (
+                              <Lock className="h-3.5 w-3.5" />
+                            ) : (
+                              <Unlock className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     )
@@ -385,69 +369,6 @@ export default function AdminUsersPage() {
         </CardContent>
       </Card>
 
-      {/* User Detail Dialog */}
-      <Dialog open={!!viewUser} onOpenChange={(open) => !open && setViewUser(null)}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-lg font-bold text-heading">
-              Thông tin tài khoản
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              Chi tiết tài khoản người dùng
-            </DialogDescription>
-          </DialogHeader>
-          {viewUser && (
-            <div className="grid grid-cols-2 gap-3 py-2 text-xs">
-              <div className="rounded-xl border border-border/80 p-3">
-                <span className="text-[11px] text-muted block mb-1">Họ và tên</span>
-                <span className="font-semibold text-heading">
-                  {viewUser.full_name || "Chưa cập nhật"}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/80 p-3">
-                <span className="text-[11px] text-muted block mb-1">Tên đăng nhập</span>
-                <span className="font-mono font-semibold text-heading">
-                  {viewUser.username}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/80 p-3 col-span-2">
-                <span className="text-[11px] text-muted block mb-1">Email</span>
-                <span className="font-medium text-heading break-all">
-                  {viewUser.email}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/80 p-3">
-                <span className="text-[11px] text-muted block mb-1">Vai trò</span>
-                <span className="font-medium text-heading">
-                  {String(viewUser.role).toLowerCase() === USER_ROLES.ADMIN
-                    ? "Quản trị viên"
-                    : "Người dùng"}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/80 p-3">
-                <span className="text-[11px] text-muted block mb-1">Trạng thái</span>
-                <span
-                  className={`font-semibold ${
-                    viewUser.is_active ? "text-emerald-600" : "text-rose-600"
-                  }`}
-                >
-                  {viewUser.is_active ? "Đang hoạt động" : "Đã khóa"}
-                </span>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setViewUser(null)}
-              className="rounded-xl text-xs"
-            >
-              Đóng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Lock/Unlock Confirmation Dialog */}
       <Dialog open={!!toggleTarget} onOpenChange={(open) => !open && setToggleTarget(null)}>

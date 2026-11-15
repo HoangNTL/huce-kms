@@ -79,14 +79,20 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        "sticky top-14 flex h-[calc(100vh-3.5rem)] shrink-0 flex-col border-r border-border bg-surface/80 backdrop-blur-sm transition-[width] duration-300 ease-in-out",
+        "flex h-full shrink-0 flex-col border-r border-border bg-surface/80 backdrop-blur-sm transition-[width] duration-300 ease-in-out",
         isCollapsed ? "w-16" : "w-64"
       )}
     >
       {isAdminContext ? (
         /* --- ADMIN MODE NAVIGATION --- */
-        <nav className="flex-1 space-y-1.5 overflow-y-auto p-2">
-          {adminNavItems.map((item) => {
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {!isCollapsed && (
+            <div className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+              Quản trị hệ thống
+            </div>
+          )}
+          <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+            {adminNavItems.map((item) => {
             const Icon = item.icon
             const isActive =
               pathname === item.href ||
@@ -113,6 +119,7 @@ export function AppSidebar() {
             )
           })}
         </nav>
+      </div>
       ) : (
         /* --- USER MODE: CHAT SESSIONS & HISTORY --- */
         <>

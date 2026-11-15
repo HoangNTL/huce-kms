@@ -82,7 +82,7 @@ async def list_documents(
     pagination: PaginationDep,
     service: DocumentServiceDep,
     category_id: int | None = Query(None, description="Filter by category ID"),
-    status_filter: str | None = Query(None, alias="status", description="Filter by status (pending, processing, indexed, failed)"),
+    status_filter: str | None = Query(None, alias="status", description="Filter by status (uploaded, pending, processing, indexed, failed)"),
     q: str | None = Query(None, description="Search keyword in title or filename"),
 ):
     items, total = await service.list_documents(

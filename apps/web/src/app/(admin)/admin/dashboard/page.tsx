@@ -135,13 +135,13 @@ export default function AdminDashboardPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header Bar: Clean & Focused */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-heading text-2xl font-bold tracking-tight text-heading">
+          <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
             Tổng quan Hệ thống
-          </h2>
+          </h1>
         </div>
 
         <Button
@@ -157,24 +157,24 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Metric Cards Grid (Modern Squircle + Pill Badge Pattern) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map((item, idx) => {
           const Icon = item.icon
           return (
             <Card
               key={idx}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-surface p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-surface p-4 py-3.5 gap-0 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {/* Top Row: Icon squircle on left, Pill badge on right */}
                 <div className="flex items-center justify-between">
                   <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl border ${item.squircle} shadow-2xs transition-transform duration-200 group-hover:scale-105`}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl border ${item.squircle} shadow-2xs transition-transform duration-200 group-hover:scale-105`}
                   >
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-4.5 w-4.5" />
                   </div>
                   <span
-                    className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-tight ${item.badgeStyle}`}
+                    className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-tight ${item.badgeStyle}`}
                   >
                     <ArrowUpRight className="h-3 w-3" />
                     {item.subBadge}
@@ -183,7 +183,7 @@ export default function AdminDashboardPage() {
 
                 {/* Main Metric Value */}
                 <div className="space-y-0.5">
-                  <p className="font-heading text-3xl font-extrabold tracking-tight text-heading">
+                  <p className="font-heading text-2xl font-extrabold tracking-tight text-heading">
                     {item.value}
                   </p>
                   <p className="text-xs font-semibold text-heading/85">{item.title}</p>
@@ -195,15 +195,15 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Two Column Section */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* System Health */}
-        <Card className="rounded-2xl border border-slate-200/80 bg-surface shadow-xs">
-          <CardHeader className="pb-3 pt-5">
-            <CardTitle className="font-heading text-base font-bold text-heading">
+        <Card className="rounded-2xl border border-border bg-surface shadow-xs py-0 gap-0">
+          <CardHeader className="px-5 pt-4 pb-3">
+            <CardTitle className="font-heading text-sm font-bold text-heading">
               Sức khỏe Dịch vụ Nền tảng
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 pb-5 text-xs">
+          <CardContent className="space-y-2.5 px-5 pb-4 text-xs">
             {stats?.services && stats.services.length > 0 ? (
               stats.services.map((svc: ServiceStatus, idx: number) => {
                 const isHealthy = svc.status === "healthy"
@@ -274,10 +274,10 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Recent Document Processing */}
-        <Card className="rounded-2xl border border-slate-200/80 bg-surface shadow-xs">
-          <CardHeader className="flex flex-row items-center justify-between pb-3 pt-5">
+        <Card className="rounded-2xl border border-border bg-surface shadow-xs py-0 gap-0">
+          <CardHeader className="flex flex-row items-center justify-between px-5 pt-4 pb-3">
             <div>
-              <CardTitle className="font-heading text-base font-bold text-heading">
+              <CardTitle className="font-heading text-sm font-bold text-heading">
                 Tài liệu Tri thức Mới nhất
               </CardTitle>
               <CardDescription className="text-xs text-muted">
@@ -292,7 +292,7 @@ export default function AdminDashboardPage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3 pb-5 text-xs">
+          <CardContent className="space-y-2.5 px-5 pb-4 text-xs">
             {recentDocs.length > 0 ? (
               recentDocs.map((doc) => {
                 const chunks = doc.chunk_count ?? 0

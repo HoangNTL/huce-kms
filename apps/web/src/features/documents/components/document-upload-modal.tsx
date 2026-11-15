@@ -36,6 +36,12 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
   const [categories, setCategories] = React.useState<CategoryItem[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = React.useState<string>("")
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isTitleManuallyEdited, setIsTitleManuallyEdited] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+
+  const cleanFileName = (fileName: string): string => {
+    return fileName.replace(/\.[^/.]+$/, "").trim() || fileName
+  }
 
   const categoryOptions: Record<string, string> = React.useMemo(() => {
     const map: Record<string, string> = {
@@ -49,6 +55,18 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
     }
     return map
   }, [categories])
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setFile(null)
+      setTitle("")
+      setIsTitleManuallyEdited(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+    onOpenChange(isOpen)
+  }
 
   React.useEffect(() => {
     if (open) {
@@ -70,10 +88,33 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0]
       setFile(selectedFile)
-      if (!title) {
-        const defaultTitle = selectedFile.name.replace(/\.[^/.]+$/, "")
-        setTitle(defaultTitle)
+      // Nếu chưa tự chỉnh sửa thủ công hoặc ô tiêu đề đang trống -> tự điền theo tên file mới
+      if (!isTitleManuallyEdited || !title.trim()) {
+        setTitle(cleanFileName(selectedFile.name))
+        setIsTitleManuallyEdited(false)
       }
+    }
+  }
+
+  const handleRemoveFile = () => {
+    setFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+    // Nếu tiêu đề trước đó được auto-fill từ file vừa xóa thì xóa luôn
+    if (!isTitleManuallyEdited) {
+      setTitle("")
+    }
+  }
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setTitle(val)
+    if (val.trim() === "") {
+      // Khi người dùng xóa hết chữ -> cho phép auto-fill lại khi chọn file kế tiếp
+      setIsTitleManuallyEdited(false)
+    } else {
+      setIsTitleManuallyEdited(true)
     }
   }
 
@@ -96,6 +137,10 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
       })
       setFile(null)
       setTitle("")
+      setIsTitleManuallyEdited(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
       onOpenChange(false)
       if (onSuccess) onSuccess()
     } catch (err) {
@@ -110,8 +155,8 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md rounded-2xl">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-lg rounded-2xl overflow-hidden">
         <DialogHeader>
           <DialogTitle className="font-heading text-lg font-bold text-heading">
             Tải lên tài liệu
@@ -121,20 +166,34 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="doc-title" className="text-xs">Tên tài liệu</Label>
+        <div className="space-y-4 py-2 min-w-0">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="doc-title" className="text-xs shrink-0">Tên tài liệu</Label>
+              {file && isTitleManuallyEdited && title !== cleanFileName(file.name) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTitle(cleanFileName(file.name))
+                    setIsTitleManuallyEdited(false)
+                  }}
+                  className="shrink-0 cursor-pointer text-[11px] text-brand-primary hover:underline"
+                >
+                  Đặt lại theo tên tệp
+                </button>
+              )}
+            </div>
             <Input
               id="doc-title"
               placeholder="Nhập tên tài liệu..."
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={handleTitleChange}
               disabled={isLoading}
-              className="rounded-xl text-xs"
+              className="w-full min-w-0 rounded-xl text-xs"
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0">
             <Label htmlFor="category">Danh mục tài liệu</Label>
             <Select
               items={categoryOptions}
@@ -165,10 +224,11 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
             </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0">
             <Label>Tệp tin tài liệu</Label>
             <div className="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/50 p-6 text-center transition-colors hover:bg-surface">
               <input
+                ref={fileInputRef}
                 type="file"
                 accept=".pdf,.txt,.md"
                 onChange={handleFileChange}
@@ -182,19 +242,22 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
               </p>
             </div>
             {file && (
-              <div className="mt-2 flex items-center justify-between rounded-lg border border-border bg-surface p-2.5 text-xs text-heading">
-                <div className="flex items-center gap-2 truncate">
+              <div className="mt-2 flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-surface p-2.5 text-xs text-heading">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   <FileText className="h-4 w-4 shrink-0 text-brand-primary" />
-                  <span className="truncate font-medium">{file.name}</span>
-                  <span className="text-[11px] text-muted">
+                  <span className="truncate font-medium" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-muted">
                     ({(file.size / 1024 / 1024).toFixed(2)} MB)
                   </span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setFile(null)}
+                  onClick={handleRemoveFile}
                   disabled={isLoading}
-                  className="text-muted hover:text-destructive"
+                  className="shrink-0 cursor-pointer text-muted transition-colors hover:text-destructive"
+                  title="Xóa tệp đã chọn"
                 >
                   <X className="h-4 w-4" />
                 </button>

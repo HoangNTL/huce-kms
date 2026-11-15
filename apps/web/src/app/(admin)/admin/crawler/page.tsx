@@ -191,9 +191,9 @@ export default function AdminCrawlerPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h2 className="font-heading text-xl font-bold text-heading">
+        <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
           Trung tâm Quản trị Content Crawler (Hybrid)
-        </h2>
+        </h1>
         <p className="text-xs text-muted">
           Thu thập có kiểm soát: Crawl URL trực tiếp, Khám phá liên kết từ danh mục, Hàng đợi phê duyệt
           và Tích hợp RAG Pipeline

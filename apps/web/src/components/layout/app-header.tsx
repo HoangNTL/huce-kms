@@ -68,11 +68,27 @@ export function AppHeader() {
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="font-medium text-heading">
-                    {getBreadcrumb()}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
+                {pathname.includes("/admin/documents/") ? (
+                  <>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink render={<Link href={ROUTES.ADMIN.DOCUMENTS} />}>
+                        Tài liệu
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium text-heading">
+                        Chi tiết
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                ) : (
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="font-medium text-heading">
+                      {getBreadcrumb()}
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
           </>
