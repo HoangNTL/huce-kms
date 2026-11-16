@@ -28,15 +28,29 @@ class TestCrawlerSchemas(unittest.TestCase):
         self.assertEqual(data["media"]["images"], [])
         self.assertEqual(data["crawl"]["status"], "success")
 
-    def test_crawled_media_item(self):
-        item = CrawledMediaItem(
-            url="https://daotao.huce.edu.vn/files/qd.pdf",
-            local_path="pdfs/qd.pdf",
-            file_name="qd.pdf",
-            file_size=1024,
-            file_hash="sha256:fakehash",
-            mime_type="application/pdf",
-            media_type="pdf",
+    def test_crawl_result_field_mapping(self):
+        result = CrawlResult(
+            url="https://ctsv.huce.edu.vn/tb-1",
+            status="success",
+            title="Thông báo sinh viên",
+            artifact_dir=settings.CRAWLER_DATA_DIR,
+            pdf_count=2,
+            image_count=1,
+            errors=[],
         )
-        self.assertEqual(item.media_type, "pdf")
-        self.assertEqual(item.status, "success")
+        # Verify status is str and does not have .value
+        self.assertIsInstance(result.status, str)
+        self.assertEqual(getattr(result.status, "value", str(result.status)), "success")
+        self.assertEqual(result.title, "Thông báo sinh viên")
+        self.assertEqual(result.pdf_count + result.image_count, 3)
+
+    def test_discovery_result_source_type(self):
+        from api.services.crawler.discovery.schemas import DiscoveryResult, DiscoveredItem
+        res = DiscoveryResult(
+            source_url="https://ctsv.huce.edu.vn",
+            source_type="html",
+            total_discovered=1,
+            items=[DiscoveredItem(url="https://ctsv.huce.edu.vn/1", title="Tin 1")],
+        )
+        self.assertEqual(res.source_type, "html")
+        self.assertEqual(getattr(res.source_type, "value", str(res.source_type)), "html")

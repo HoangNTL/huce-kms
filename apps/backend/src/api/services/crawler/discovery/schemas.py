@@ -18,6 +18,7 @@ class DiscoveryResult(BaseModel):
     """Aggregate output from running discovery on a listing page or feed."""
 
     source_url: str
+    source_type: str = "web"
     discovered_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     total_discovered: int
     items: list[DiscoveredItem] = Field(default_factory=list)

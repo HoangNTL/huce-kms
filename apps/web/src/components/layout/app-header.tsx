@@ -32,7 +32,7 @@ export function AppHeader() {
     if (pathname.includes("/admin/users")) return "Người dùng"
     if (pathname.includes("/admin/documents/")) return "Chi tiết tài liệu"
     if (pathname.includes("/admin/documents")) return "Tài liệu"
-    if (pathname.includes("/admin/crawler")) return "Crawler"
+    if (pathname.includes("/admin/crawler")) return "Thu thập dữ liệu"
     if (pathname.includes("/admin/profile") || pathname === "/profile") return "Tài khoản"
     return "Tổng quan"
   }

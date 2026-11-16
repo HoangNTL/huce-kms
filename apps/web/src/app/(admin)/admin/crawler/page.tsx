@@ -2,16 +2,11 @@
 
 import * as React from "react"
 import {
-  Globe,
-  Play,
-  Search,
   CheckCircle2,
-  ListOrdered,
-  History,
   Loader2,
-  FileText,
   Check,
   ExternalLink,
+  RotateCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +29,28 @@ import {
   type QueueResponse,
 } from "@/features/crawler"
 
+function formatDateTime(dateStr?: string | null): string {
+  if (!dateStr || dateStr === "—") return "—"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    const time = d.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    })
+    const date = d.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    })
+    return `${time} • ${date}`
+  } catch {
+    return dateStr
+  }
+}
+
 export default function AdminCrawlerPage() {
   const [activeTab, setActiveTab] = React.useState("direct")
 
@@ -45,7 +62,7 @@ export default function AdminCrawlerPage() {
   const [directResult, setDirectResult] = React.useState<CrawlDirectResult | null>(null)
 
   // --- Tab 2: Discovery State ---
-  const [discoveryUrl, setDiscoveryUrl] = React.useState("https://daotao.huce.edu.vn/thong-bao")
+  const [discoveryUrl, setDiscoveryUrl] = React.useState("")
   const [maxItems, setMaxItems] = React.useState(30)
   const [isDiscovering, setIsDiscovering] = React.useState(false)
   const [discoveryResult, setDiscoveryResult] = React.useState<DiscoverResult | null>(null)
@@ -190,14 +207,10 @@ export default function AdminCrawlerPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
+      <div>
         <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
-          Trung tâm Quản trị Content Crawler (Hybrid)
+          Thu thập dữ liệu
         </h1>
-        <p className="text-xs text-muted">
-          Thu thập có kiểm soát: Crawl URL trực tiếp, Khám phá liên kết từ danh mục, Hàng đợi phê duyệt
-          và Tích hợp RAG Pipeline
-        </p>
       </div>
 
       <Tabs
@@ -210,37 +223,27 @@ export default function AdminCrawlerPage() {
         className="flex flex-col w-full gap-3"
       >
         <TabsList className="h-9 w-fit bg-surface border border-border p-1">
-          <TabsTrigger value="direct" className="gap-1.5 text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
-            <Globe className="h-3.5 w-3.5" />
-            <span>Crawl Trực tiếp</span>
+          <TabsTrigger value="direct" className="text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
+            Theo liên kết
           </TabsTrigger>
-          <TabsTrigger value="discovery" className="gap-1.5 text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
-            <Search className="h-3.5 w-3.5" />
-            <span>Khám phá Liên kết</span>
+          <TabsTrigger value="discovery" className="text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
+            Khám phá
           </TabsTrigger>
-          <TabsTrigger value="queue" className="gap-1.5 text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
-            <ListOrdered className="h-3.5 w-3.5" />
-            <span>Hàng đợi Duyệt</span>
+          <TabsTrigger value="queue" className="text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
+            Hàng đợi duyệt
           </TabsTrigger>
-          <TabsTrigger value="sessions" className="gap-1.5 text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
-            <History className="h-3.5 w-3.5" />
-            <span>Lịch sử Phiên Crawl</span>
+          <TabsTrigger value="sessions" className="text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold">
+            Lịch sử
           </TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Direct Crawl */}
-        <TabsContent value="direct" className="space-y-4 pt-3">
-          <Card className="border-border shadow-xs">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-heading">Crawl Bài viết hoặc Tài liệu Cụ thể</CardTitle>
-              <CardDescription className="text-xs">
-                Nhập địa chỉ URL bài viết hoặc văn bản cần tải về làm sạch thành Markdown và tải PDF đính kèm.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleDirectCrawl} className="space-y-4">
+        <TabsContent value="direct" className="space-y-4 pt-1">
+          <Card className="border-border shadow-xs py-0">
+            <CardContent className="p-4 sm:p-5">
+              <form onSubmit={handleDirectCrawl} className="max-w-2xl space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-heading">Địa chỉ URL bài viết</label>
+                  <label className="text-xs font-medium text-heading">URL bài viết</label>
                   <Input
                     placeholder="https://daotao.huce.edu.vn/thong-bao/..."
                     value={directUrl}
@@ -258,7 +261,7 @@ export default function AdminCrawlerPage() {
                       onChange={(e) => setAutoIngest(e.target.checked)}
                       className="rounded border-border"
                     />
-                    <span>Tự động nạp vào Document Knowledge Base (Auto-ingest)</span>
+                    <span>Lưu vào kho tài liệu</span>
                   </label>
                   {autoIngest && (
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -268,7 +271,7 @@ export default function AdminCrawlerPage() {
                         onChange={(e) => setAutoPublish(e.target.checked)}
                         className="rounded border-border"
                       />
-                      <span className="text-emerald-700 font-medium">Băm chunks & Index Vector Qdrant ngay (Auto-publish)</span>
+                      <span className="text-emerald-700 font-medium">Lập chỉ mục tìm kiếm</span>
                     </label>
                   )}
                 </div>
@@ -281,13 +284,10 @@ export default function AdminCrawlerPage() {
                   {isCrawlingDirect ? (
                     <>
                       <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      Đang cào dữ liệu & tải tài liệu...
+                      Đang thu thập dữ liệu...
                     </>
                   ) : (
-                    <>
-                      <Play className="mr-1.5 h-3.5 w-3.5" />
-                      Bắt đầu Crawl Ngay
-                    </>
+                    "Thu thập dữ liệu"
                   )}
                 </Button>
               </form>
@@ -335,18 +335,12 @@ export default function AdminCrawlerPage() {
         </TabsContent>
 
         {/* Tab 2: Discovery */}
-        <TabsContent value="discovery" className="space-y-4 pt-3">
-          <Card className="border-border shadow-xs">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-heading">Khám phá Liên kết từ Trang Danh mục / Sitemap</CardTitle>
-              <CardDescription className="text-xs">
-                Trích xuất danh sách các bài viết tiềm năng mà không tự động tải nội dung, sẵn sàng đưa vào hàng đợi phê duyệt.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleDiscovery} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <TabsContent value="discovery" className="space-y-4 pt-1">
+          <Card className="border-border shadow-xs py-0">
+            <CardContent className="p-4 sm:p-5">
+              <form onSubmit={handleDiscovery} className="max-w-2xl flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="flex-1 space-y-1.5">
-                  <label className="text-xs font-medium text-heading">Địa chỉ trang danh mục / Sitemap / RSS</label>
+                  <label className="text-xs font-medium text-heading">URL nguồn trang</label>
                   <Input
                     placeholder="https://daotao.huce.edu.vn/thong-bao"
                     value={discoveryUrl}
@@ -378,10 +372,7 @@ export default function AdminCrawlerPage() {
                       Đang quét liên kết...
                     </>
                   ) : (
-                    <>
-                      <Search className="mr-1.5 h-3.5 w-3.5" />
-                      Khám phá
-                    </>
+                    "Khám phá"
                   )}
                 </Button>
               </form>
@@ -458,64 +449,65 @@ export default function AdminCrawlerPage() {
         </TabsContent>
 
         {/* Tab 3: Queue */}
-        <TabsContent value="queue" className="space-y-4 pt-3">
-          <Card className="border-border shadow-xs">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle className="text-sm font-bold text-heading">Hàng đợi Phê duyệt (Review Queue)</CardTitle>
-                <CardDescription className="text-xs">
-                  Danh sách URL đã được phê duyệt sẵn sàng nạp vào crawler execution batch.
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadQueue}
-                disabled={isLoadingQueue}
-                className="text-xs"
-              >
-                {isLoadingQueue ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Làm mới"}
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-border bg-surface/50 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-heading">Số lượng URL Đã Phê duyệt (Approved)</p>
-                    <p className="text-2xl font-bold text-brand-primary">{queueData?.approved_total ?? 0}</p>
+        <TabsContent value="queue" className="space-y-4 pt-1">
+          <Card className="border-border shadow-xs py-0">
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              {/* Section 1: Approved URLs with header & refresh button */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-heading">Liên kết chờ thu thập</span>
+                    <Badge variant="outline" className="border-emerald-500/30 bg-emerald-50 text-emerald-700 text-[11px]">
+                      {queueData?.approved_total ?? 0}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-50 text-emerald-700 text-xs">
-                    Sẵn sàng Crawl
-                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={loadQueue}
+                    disabled={isLoadingQueue}
+                    className="h-8 w-8 text-muted hover:text-heading"
+                    title="Làm mới hàng đợi"
+                  >
+                    <RotateCw className={`h-3.5 w-3.5 transition-transform duration-500 hover:rotate-180 ${isLoadingQueue ? "animate-spin" : ""}`} />
+                  </Button>
                 </div>
-              </div>
 
-              {queueData?.approved_urls && queueData.approved_urls.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-heading">Danh sách URL trong hàng đợi:</p>
-                  <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-surface p-2 text-xs font-mono space-y-1">
+                {(!queueData?.approved_urls || queueData.approved_urls.length === 0) ? (
+                  <div className="rounded-lg border border-border/70 bg-surface/50 p-6 text-center text-xs text-muted">
+                    Hàng đợi hiện đang trống. Hãy qua tab &quot;Khám phá&quot; để tìm và duyệt liên kết.
+                  </div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-border bg-surface divide-y divide-border/60">
                     {queueData.approved_urls.map((url, i) => (
-                      <div key={i} className="truncate p-1 hover:bg-muted/50 rounded">
-                        {url}
+                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs hover:bg-muted/30">
+                        <span className="font-mono text-muted text-[11px] w-6 shrink-0">{i + 1}.</span>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs text-heading hover:text-brand-primary truncate flex-1 flex items-center gap-1.5"
+                        >
+                          <span className="truncate">{url}</span>
+                          <ExternalLink className="h-3 w-3 shrink-0 text-muted" />
+                        </a>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
+              {/* Section 2: Recent Discovery Logs */}
               {queueData?.discovered_files && queueData.discovered_files.length > 0 && (
-                <div className="space-y-2 pt-2">
-                  <p className="text-xs font-semibold text-heading">Tệp tin Discovery đã lưu gần đây:</p>
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <p className="text-xs font-semibold text-heading">Lần quét gần đây</p>
                   <div className="space-y-1.5 text-xs">
                     {queueData.discovered_files.map((df, idx) => (
-                      <div key={idx} className="flex items-center justify-between rounded border border-border/70 p-2.5">
-                        <div>
-                          <p className="font-mono font-medium text-heading">{df.filename}</p>
-                          <p className="text-[11px] text-muted">{df.source_url} • {df.total} bài viết</p>
-                        </div>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {df.total} items
-                        </Badge>
+                      <div key={idx} className="rounded-lg border border-border/80 bg-surface p-3">
+                        <p className="font-medium text-heading truncate">{df.source_url || df.filename}</p>
+                        <p className="text-[11px] text-muted">
+                          {formatDateTime(new Date(df.created_at * 1000).toISOString())} • {df.total} bài viết tìm thấy
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -526,41 +518,37 @@ export default function AdminCrawlerPage() {
         </TabsContent>
 
         {/* Tab 4: Sessions */}
-        <TabsContent value="sessions" className="space-y-4 pt-3">
-          <Card className="border-border shadow-xs">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle className="text-sm font-bold text-heading">Lịch sử Phiên Crawl</CardTitle>
-                <CardDescription className="text-xs">
-                  Nhật ký các phiên cào dữ liệu trước đây và trạng thái Ingestion vào RAG.
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadSessions}
-                disabled={isLoadingSessions}
-                className="text-xs"
-              >
-                {isLoadingSessions ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Làm mới"}
-              </Button>
-            </CardHeader>
+        <TabsContent value="sessions" className="space-y-4 pt-1">
+          <Card className="border-border shadow-xs py-0">
             <CardContent className="p-0">
+              <div className="flex items-center justify-between p-4 border-b border-border/60">
+                <span className="text-xs font-semibold text-heading">Nhật ký phiên thu thập</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={loadSessions}
+                  disabled={isLoadingSessions}
+                  className="h-8 w-8 text-muted hover:text-heading"
+                  title="Làm mới lịch sử"
+                >
+                  <RotateCw className={`h-3.5 w-3.5 transition-transform duration-500 hover:rotate-180 ${isLoadingSessions ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Mã phiên (Session ID)</TableHead>
+                    <TableHead>Mã phiên</TableHead>
                     <TableHead>Thời gian</TableHead>
                     <TableHead>Tổng URL</TableHead>
                     <TableHead>Thành công</TableHead>
-                    <TableHead className="text-right">Hành động</TableHead>
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sessions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center text-xs text-muted">
-                        Chưa có phiên crawl nào được ghi nhận.
+                        Chưa có phiên thu thập nào được ghi nhận.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -575,7 +563,7 @@ export default function AdminCrawlerPage() {
                           <TableCell className="font-mono text-xs font-semibold text-heading">
                             {sid}
                           </TableCell>
-                          <TableCell className="text-xs text-muted">{started}</TableCell>
+                          <TableCell className="text-xs text-muted">{formatDateTime(started)}</TableCell>
                           <TableCell className="text-xs">{total}</TableCell>
                           <TableCell className="text-xs text-emerald-600 font-medium">
                             {succ}
@@ -585,10 +573,9 @@ export default function AdminCrawlerPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleIngestSession(sid)}
-                              className="h-7 text-xs gap-1 border-brand-primary/40 text-brand-primary hover:bg-brand-primary/10"
+                              className="h-7 text-xs border-brand-primary/40 text-brand-primary hover:bg-brand-primary/10"
                             >
-                              <FileText className="h-3 w-3" />
-                              <span>Nạp RAG</span>
+                              Lưu vào kho
                             </Button>
                           </TableCell>
                         </TableRow>

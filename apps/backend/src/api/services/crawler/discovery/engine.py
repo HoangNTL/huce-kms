@@ -30,15 +30,19 @@ class DiscoveryEngine:
 
         items: list[DiscoveredItem] = []
         lower_text = text.lower()
+        source_type = "html"
 
         if "<urlset" in lower_text or "<sitemapindex" in lower_text:
             logger.debug(f"Parsing {url} as XML Sitemap")
+            source_type = "sitemap"
             items = SitemapParser.parse(text, base_url=response.final_url, normalizer=self.normalizer)
         elif "<rss" in lower_text or "<feed" in lower_text:
             logger.debug(f"Parsing {url} as RSS/Atom Feed")
+            source_type = "rss"
             items = RssParser.parse(text, base_url=response.final_url, normalizer=self.normalizer)
         else:
             logger.debug(f"Parsing {url} as HTML Listing Page")
+            source_type = "html"
             items = ListingExtractor.extract_items(text, base_url=response.final_url, normalizer=self.normalizer)
 
         if max_items > 0:
@@ -46,6 +50,7 @@ class DiscoveryEngine:
 
         result = DiscoveryResult(
             source_url=url,
+            source_type=source_type,
             total_discovered=len(items),
             items=items,
         )

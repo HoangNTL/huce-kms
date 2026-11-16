@@ -34,7 +34,7 @@ const adminNavItems = [
     icon: FileText,
   },
   {
-    title: "Crawler",
+    title: "Thu thập dữ liệu",
     href: ROUTES.ADMIN.CRAWLER,
     icon: Globe,
   },

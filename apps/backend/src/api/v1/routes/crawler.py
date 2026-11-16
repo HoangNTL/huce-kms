@@ -64,21 +64,31 @@ async def crawl_direct_url(
     except Exception as e:
         raise BadRequestException(message=f"Crawl failed for '{payload.url}': {str(e)}") from e
 
+    content_len = 0
+    if result.markdown_path and result.markdown_path.exists():
+        try:
+            content_len = result.markdown_path.stat().st_size
+        except Exception:
+            content_len = 0
+
+    status_val = getattr(result.status, "value", str(result.status))
+    error_msg = "; ".join(result.errors) if result.errors else None
+
     response_data: dict[str, Any] = {
         "url": result.url,
-        "status": result.status.value,
-        "title": result.metadata.content.title if result.metadata else None,
-        "content_length": len(result.markdown_content) if result.markdown_content else 0,
-        "media_count": len(result.media_items),
-        "page_dir": str(result.page_dir) if result.page_dir else None,
-        "error_message": result.error_message,
+        "status": status_val,
+        "title": result.title,
+        "content_length": content_len,
+        "media_count": result.pdf_count + result.image_count,
+        "page_dir": str(result.artifact_dir) if result.artifact_dir else None,
+        "error_message": error_msg,
         "ingested": False,
     }
 
-    if payload.auto_ingest and result.page_dir:
+    if payload.auto_ingest and result.artifact_dir:
         adapter = get_crawler_adapter(db)
         ingest_results = await adapter.ingest_page(
-            page_dir=result.page_dir,
+            page_dir=result.artifact_dir,
             category_id=payload.category_id,
             auto_publish=payload.auto_publish,
             uploader_id=admin.id,
@@ -117,7 +127,7 @@ async def discover_urls(
         message=f"Discovered {result.total_discovered} candidate URLs.",
         data={
             "source_url": result.source_url,
-            "source_type": result.source_type.value,
+            "source_type": getattr(result.source_type, "value", str(result.source_type)),
             "total_discovered": result.total_discovered,
             "items": [item.model_dump() for item in result.items],
             "queue_file": saved_file.name,
