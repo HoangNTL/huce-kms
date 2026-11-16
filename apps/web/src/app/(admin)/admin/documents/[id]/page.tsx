@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, FileText, Search, Pencil } from "lucide-react"
+import { ArrowLeft, Loader2, FileText, Search, Pencil, Download, AlertCircle, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -151,16 +151,44 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
     <div className="w-full space-y-4">
       {/* 1. Page Header Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-3">
-        <h1 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate" title={doc.title}>
-          {doc.title}
-        </h1>
-        <Button
-          onClick={() => setIsEditModalOpen(true)}
-          className="h-8 shrink-0 gap-1.5 rounded-lg bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          <span>Chỉnh sửa</span>
-        </Button>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h1 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate" title={doc.title}>
+            {doc.title}
+          </h1>
+          <button
+            type="button"
+            onClick={() => setIsEditModalOpen(true)}
+            title="Chỉnh sửa tiêu đề & danh mục"
+            className="cursor-pointer text-muted hover:text-brand-primary transition-colors p-1 rounded-md hover:bg-surface-hover shrink-0"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {doc.download_url && (
+            <a
+              href={doc.download_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button
+                variant="outline"
+                className="h-8 gap-1.5 rounded-lg border-border text-xs font-medium text-heading hover:bg-surface-hover"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-muted" />
+                <span>Xem tệp gốc</span>
+              </Button>
+            </a>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => setIsEditModalOpen(true)}
+            className="h-8 shrink-0 gap-1.5 rounded-lg border-border text-xs font-medium text-heading hover:bg-surface-hover hover:text-brand-primary"
+          >
+            <Pencil className="h-3.5 w-3.5 text-muted" />
+            <span>Chỉnh sửa</span>
+          </Button>
+        </div>
       </div>
 
       {/* 2. Bố cục 2 cột (Left: 4 cols, Right: 8 cols) */}
@@ -188,9 +216,22 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                 </div>
                 <div className="flex items-center justify-between gap-3 min-w-0">
                   <span className="shrink-0">Tên tệp gốc</span>
-                  <span className="max-w-[180px] truncate font-medium text-heading text-right" title={doc.file_name}>
-                    {doc.file_name}
-                  </span>
+                  {doc.download_url ? (
+                    <a
+                      href={doc.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="max-w-[180px] truncate font-medium text-brand-primary hover:underline text-right inline-flex items-center gap-1"
+                      title={`Xem tệp ${doc.file_name}`}
+                    >
+                      <span className="truncate">{doc.file_name}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+                    </a>
+                  ) : (
+                    <span className="max-w-[180px] truncate font-medium text-heading text-right" title={doc.file_name}>
+                      {doc.file_name}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Định dạng</span>
@@ -258,10 +299,26 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
 
             <CardContent className="p-0">
               {allChunks.length === 0 ? (
-                <div className="p-12 text-center text-xs text-muted">
-                  <FileText className="mx-auto mb-2 h-8 w-8 text-muted/60" />
-                  <p className="font-medium">Tài liệu này chưa có phân đoạn nào được trích xuất.</p>
-                  <p className="mt-1 text-[11px]">Trạng thái tài liệu: {doc.status}</p>
+                <div className="p-8 text-center text-xs text-muted">
+                  {doc.status.toLowerCase() === "failed" ? (
+                    <div className="mx-auto max-w-lg rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-left">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-destructive">Xử lý tài liệu không thành công</p>
+                          <p className="text-xs text-muted leading-relaxed">
+                            {doc.error_message || "Tài liệu là file scan/ảnh hoặc không có lớp văn bản điện tử để trích xuất."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <FileText className="mx-auto mb-2 h-8 w-8 text-muted/60" />
+                      <p className="font-medium">Tài liệu này chưa có phân đoạn nào được trích xuất.</p>
+                      <p className="mt-1 text-[11px]">Trạng thái tài liệu: {doc.status}</p>
+                    </>
+                  )}
                 </div>
               ) : filteredChunks.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted">

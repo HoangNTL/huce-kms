@@ -87,6 +87,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error("[STARTUP] Initial data seeding error: %s", e)
 
+    # Initialize Object Storage (MinIO bucket creation / local fallback check)
+    try:
+        from api.services.storage import get_storage_service
+        await get_storage_service().ensure_bucket_exists()
+    except Exception as e:
+        logger.warning("[STARTUP] Storage service initialization check: %s", e)
+
     app.state.is_healthy = True
 
     # Yield control to FastAPI request handling

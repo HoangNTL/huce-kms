@@ -17,6 +17,7 @@ from api.repositories.document import DocumentRepository
 from api.repositories.document_chunk import DocumentChunkRepository
 from api.schemas.document import (
     DocumentDetailResponse,
+    DocumentDownloadUrlResponse,
     DocumentResponse,
     DocumentUpdate,
 )
@@ -26,6 +27,7 @@ from api.services.rag.cleaner import TextCleaner
 from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.parser import DocumentParser
 from api.services.rag.vector_store import QdrantVectorStore
+from api.services.storage import StorageService, get_storage_service
 
 logger = logging.getLogger("huce_kms.services.document")
 
@@ -40,12 +42,14 @@ class DocumentService:
         category_repo: CategoryRepository,
         embedder: EmbeddingManager | GeminiEmbeddingService,
         vector_store: QdrantVectorStore,
+        storage_service: StorageService | None = None,
     ):
         self.document_repo = document_repo
         self.chunk_repo = chunk_repo
         self.category_repo = category_repo
         self.embedder = embedder
         self.vector_store = vector_store
+        self.storage_service = storage_service or get_storage_service()
         self.parser = DocumentParser()
         self.chunker = TextChunker(
             chunk_size=settings.CHUNK_SIZE,
@@ -98,18 +102,29 @@ class DocumentService:
                 message=f"Document already exists in the system (ID: {existing.id}, Title: '{existing.title}')."
             )
 
-        # 5. Save physical file to disk (sanitize filename to prevent directory traversal)
+        # 5. Save file to Object Storage (MinIO) or local fallback
         clean_file_name = Path(file_name).name or "document"
-        settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         unique_file_name = f"{uuid.uuid4().hex[:12]}_{clean_file_name}"
-        saved_file_path = settings.UPLOAD_DIR / unique_file_name
-        saved_file_path.write_bytes(file_bytes)
+        object_key = f"documents/{unique_file_name}"
+
+        content_type_map = {
+            ".pdf": "application/pdf",
+            ".txt": "text/plain; charset=utf-8",
+            ".md": "text/markdown; charset=utf-8",
+        }
+        content_type = content_type_map.get(suffix, "application/octet-stream")
+
+        saved_file_key = await self.storage_service.upload_file(
+            file_bytes=file_bytes,
+            object_name=object_key,
+            content_type=content_type,
+        )
 
         # 6. Create preliminary Document record in PostgreSQL (status = 'pending')
         document = Document(
             title=title.strip(),
             file_name=clean_file_name,
-            file_path=str(saved_file_path),
+            file_path=saved_file_key,
             file_size=len(file_bytes),
             file_type=suffix.lstrip("."),
             file_hash=file_hash,
@@ -127,16 +142,23 @@ class DocumentService:
             document.status = "processing"
             await self.document_repo.update(document)
 
-            # Step 7a: Parse raw text pages
-            raw_pages = self.parser.parse(file_bytes, file_name)
+            # Step 7a: Parse raw text pages (with automatic Gemini Vision OCR fallback for scanned PDFs)
+            raw_pages = await self.parser.parse_async(file_bytes, file_name, enable_ocr=True)
             total_pages = len(raw_pages)
 
             # Step 7b: Clean and normalize text (Unicode NFC, noise & pagination removal)
             cleaned_pages = TextCleaner.clean_pages(raw_pages)
 
+            # Keep only pages with actual text content (skip blank or cover-only pages)
+            valid_pages = [p for p in cleaned_pages if str(p.get("cleaned_text", "")).strip()]
+            if not valid_pages:
+                raise BadRequestException(
+                    message="Không tìm thấy nội dung văn bản hợp lệ trong tài liệu để trích xuất."
+                )
+
             # Step 7c: Chunk using structural legal strategy or configured strategy
             raw_chunks = TextChunker.chunk_with_strategy(
-                pages=cleaned_pages,
+                pages=valid_pages,
                 strategy=chunk_strategy,
                 document_title=document.title,
                 chunk_size=settings.CHUNK_SIZE,
@@ -195,11 +217,11 @@ class DocumentService:
 
         except Exception as e:
             logger.error("Failed to process document id=%d: %s", document.id, e)
-            # Remove physical file to avoid orphaned disk storage on transaction rollback
+            # Remove stored file to avoid orphaned storage on failure
             try:
-                saved_file_path.unlink(missing_ok=True)
+                await self.storage_service.delete_file(saved_file_key)
             except Exception as cleanup_err:
-                logger.warning("Could not delete physical file '%s': %s", saved_file_path, cleanup_err)
+                logger.warning("Could not delete stored file '%s': %s", saved_file_key, cleanup_err)
 
             # Best-effort deletion of partial vector embeddings from Qdrant
             try:
@@ -213,21 +235,73 @@ class DocumentService:
             raise
 
         refreshed = await self.document_repo.get_with_category(document.id)
-        return DocumentResponse.model_validate(refreshed or document)
+        resp = DocumentResponse.model_validate(refreshed or document)
+        try:
+            resp.download_url = await self.storage_service.get_presigned_download_url(
+                object_name=document.file_path,
+                original_filename=document.file_name,
+            )
+        except Exception as url_err:
+            logger.warning("Could not generate presigned download URL for doc id=%d: %s", document.id, url_err)
+        return resp
 
     async def get_document_by_id(self, document_id: int) -> DocumentResponse:
-        """Retrieve a document by ID."""
+        """Retrieve a document by ID with dynamic presigned download URL."""
         doc = await self.document_repo.get_with_category(document_id)
         if not doc:
             raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
-        return DocumentResponse.model_validate(doc)
+        resp = DocumentResponse.model_validate(doc)
+        try:
+            resp.download_url = await self.storage_service.get_presigned_download_url(
+                object_name=doc.file_path,
+                original_filename=doc.file_name,
+            )
+        except Exception as e:
+            logger.warning("Could not attach presigned download_url for doc id=%d: %s", document_id, e)
+        return resp
 
     async def get_document_detail(self, document_id: int) -> DocumentDetailResponse:
-        """Retrieve document metadata and all associated text chunks."""
+        """Retrieve document metadata and all associated text chunks with download URL."""
         doc = await self.document_repo.get_with_chunks(document_id)
         if not doc:
             raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
-        return DocumentDetailResponse.model_validate(doc)
+        resp = DocumentDetailResponse.model_validate(doc)
+        try:
+            resp.download_url = await self.storage_service.get_presigned_download_url(
+                object_name=doc.file_path,
+                original_filename=doc.file_name,
+            )
+        except Exception as e:
+            logger.warning("Could not attach presigned download_url for doc detail id=%d: %s", document_id, e)
+        return resp
+
+    async def get_document_download_url(
+        self, document_id: int, expiry_seconds: int = 3600
+    ) -> DocumentDownloadUrlResponse:
+        """Generate a presigned URL specifically for downloading or previewing a document."""
+        doc = await self.document_repo.get_by_id(document_id)
+        if not doc:
+            raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
+        url = await self.storage_service.get_presigned_download_url(
+            object_name=doc.file_path,
+            expiry_seconds=expiry_seconds,
+            original_filename=doc.file_name,
+        )
+        return DocumentDownloadUrlResponse(
+            document_id=doc.id,
+            file_name=doc.file_name,
+            download_url=url,
+            expires_in_seconds=expiry_seconds,
+        )
+
+    async def get_document_file_bytes(self, document_id: int) -> tuple[bytes, str, str]:
+        """Retrieve the raw file bytes, filename, and content-type for a document."""
+        doc = await self.document_repo.get_by_id(document_id)
+        if not doc:
+            raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
+        file_bytes = await self.storage_service.get_file(doc.file_path)
+        content_type = "application/pdf" if doc.file_type == "pdf" else "text/plain; charset=utf-8"
+        return file_bytes, doc.file_name, content_type
 
     async def list_documents(
         self,
@@ -259,13 +333,11 @@ class DocumentService:
         except Exception as e:
             logger.warning("Failed to delete Qdrant points for document id=%d: %s", document_id, e)
 
-        # 2. Delete physical file from disk
+        # 2. Delete file from storage (MinIO or local filesystem)
         try:
-            file_path = Path(doc.file_path)
-            if file_path.exists():
-                file_path.unlink()
+            await self.storage_service.delete_file(doc.file_path)
         except Exception as e:
-            logger.warning("Failed to remove file '%s' from disk: %s", doc.file_path, e)
+            logger.warning("Failed to remove file '%s' from storage: %s", doc.file_path, e)
 
         # 3. Delete Document record from PostgreSQL (cascades chunks automatically)
         await self.document_repo.delete(doc)

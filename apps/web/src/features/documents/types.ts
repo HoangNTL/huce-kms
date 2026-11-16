@@ -30,6 +30,7 @@ export interface DocumentMetadata {
   total_pages: number
   error_message?: string | null
   uploader_id?: number | null
+  download_url?: string | null
   created_at: string
   updated_at?: string
 }

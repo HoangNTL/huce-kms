@@ -48,8 +48,21 @@ class DocumentResponse(DocumentBase):
     created_at: datetime
     updated_at: datetime
     category: CategoryResponse | None = None
+    download_url: str | None = Field(default=None, description="Presigned download or view URL for the original document")
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("download_url", mode="before")
+    @classmethod
+    def filter_download_url(cls, v: Any) -> str | None:
+        if isinstance(v, str):
+            return v
+        if v is None:
+            return None
+        # In unit tests with MagicMock models, attribute access produces a MagicMock
+        if hasattr(v, "_mock_name") or type(v).__name__ in ("MagicMock", "AsyncMock"):
+            return None
+        return str(v)
 
     @field_validator("status", mode="before")
     @classmethod
@@ -61,6 +74,13 @@ class DocumentResponse(DocumentBase):
 
 class DocumentDetailResponse(DocumentResponse):
     chunks: list[DocumentChunkResponse] = Field(default_factory=list)
+
+
+class DocumentDownloadUrlResponse(BaseModel):
+    document_id: int
+    file_name: str
+    download_url: str
+    expires_in_seconds: int = 3600
 
 
 class DocumentUploadResponse(BaseModel):

@@ -41,6 +41,7 @@ export const documentService = {
         category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : "Chung",
         category_id: doc.category_id ? Number(doc.category_id) : undefined,
         status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
+        download_url: doc.download_url ? String(doc.download_url) : undefined,
         error_message: doc.error_message ? String(doc.error_message) : null,
         created_at: String(doc.created_at || ""),
         updated_at: doc.updated_at ? String(doc.updated_at) : undefined,
@@ -81,6 +82,7 @@ export const documentService = {
       category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : "Chung",
       category_id: doc.category_id ? Number(doc.category_id) : undefined,
       status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
+      download_url: doc.download_url ? String(doc.download_url) : undefined,
       error_message: doc.error_message ? String(doc.error_message) : null,
       created_at: String(doc.created_at || ""),
       updated_at: doc.updated_at ? String(doc.updated_at) : undefined,
@@ -122,5 +124,9 @@ export const documentService = {
 
   async getCategories(): Promise<CategoryItem[]> {
     return apiClient.get<CategoryItem[]>("/categories")
+  },
+
+  async getDocumentDownloadUrl(id: string | number): Promise<{ download_url: string }> {
+    return apiClient.get<{ download_url: string }>(`/documents/${id}/download-url`)
   },
 }

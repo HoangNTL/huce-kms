@@ -24,10 +24,12 @@ class TextChunker:
 
     def split_page_text(self, text: str) -> list[str]:
         """Split page text into smaller paragraphs or segments."""
+        if not text or not text.strip():
+            return []
         cleaned = re.sub(r"\r\n|\r", "\n", text)
         cleaned = re.sub(r"[ \t]+", " ", cleaned)
         paragraphs = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
-        return paragraphs if paragraphs else [cleaned.strip()]
+        return paragraphs
 
     @classmethod
     def is_markdown_table(cls, text: str) -> bool:
@@ -124,10 +126,14 @@ class TextChunker:
             page_number = int(page_data.get("page_number", 1))
             text = str(page_data.get("cleaned_text") or page_data.get("text") or "")
             paragraphs = self.split_page_text(text)
+            if not paragraphs:
+                continue
 
             current_chunk = ""
 
             for para in paragraphs:
+                if not para:
+                    continue
                 if len(current_chunk) + len(para) + 1 <= self.chunk_size:
                     current_chunk = f"{current_chunk}\n\n{para}".strip()
                 else:

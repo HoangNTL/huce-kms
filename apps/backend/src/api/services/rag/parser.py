@@ -1,9 +1,13 @@
+import asyncio
 import io
 import logging
 from pathlib import Path
 
+from google import genai
+from google.genai import types
 import pymupdf
 
+from api.core.config import settings
 from api.core.exceptions import BadRequestException
 
 logger = logging.getLogger("huce_kms.rag.parser")
@@ -11,6 +15,72 @@ logger = logging.getLogger("huce_kms.rag.parser")
 
 class DocumentParser:
     """Extracts text content and page metadata from supported document files."""
+
+    @classmethod
+    async def _ocr_page_with_gemini(
+        cls,
+        page: pymupdf.Page,
+        client: genai.Client,
+        semaphore: asyncio.Semaphore | None = None,
+    ) -> str:
+        """Render a PDF page to image and transcribe text using Gemini Vision."""
+        async def _run_ocr() -> str:
+            try:
+                # Offload CPU-heavy page rendering and PNG encoding to a worker thread
+                def _render_page_png() -> bytes:
+                    pix = page.get_pixmap(dpi=150)
+                    return pix.tobytes("png")
+
+                image_bytes = await asyncio.to_thread(_render_page_png)
+                part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+                prompt = (
+                    "Bạn là hệ thống trích xuất văn bản (OCR) chính xác cao cho tài liệu học thuật và văn bản hành chính Việt Nam.\n"
+                    "Hãy đọc và trích xuất toàn bộ nội dung văn bản trên hình ảnh này.\n"
+                    "Yêu cầu:\n"
+                    "1. Giữ nguyên cấu trúc, tiêu đề, số thứ tự, số hiệu văn bản, các Điều/Khoản.\n"
+                    "2. Nếu có bảng biểu, hãy chuyển đổi chính xác thành định dạng Markdown Table.\n"
+                    "3. Chỉ trả về nội dung văn bản trích xuất được, không kèm lời mở đầu, giải thích hay bình luận."
+                )
+
+                max_retries = 2
+                for attempt in range(max_retries):
+                    try:
+                        response = await client.aio.models.generate_content(
+                            model=settings.LLM_MODEL,
+                            contents=[part, prompt],
+                        )
+                        extracted = response.text.strip() if response.text else ""
+                        logger.info(
+                            "Gemini OCR successfully processed page %d (%d characters extracted).",
+                            page.number + 1,
+                            len(extracted),
+                        )
+                        return extracted
+                    except Exception as exc:
+                        if attempt < max_retries - 1:
+                            logger.warning(
+                                "Gemini OCR attempt %d failed on page %d: %s. Retrying in 1.5s...",
+                                attempt + 1,
+                                page.number + 1,
+                                exc,
+                            )
+                            await asyncio.sleep(1.5)
+                        else:
+                            logger.warning(
+                                "Gemini OCR failed on page %d after %d attempts: %s",
+                                page.number + 1,
+                                max_retries,
+                                exc,
+                            )
+                            return ""
+            except Exception as e:
+                logger.warning("Gemini OCR preparation failed on page %d: %s", page.number + 1, e)
+                return ""
+
+        if semaphore:
+            async with semaphore:
+                return await _run_ocr()
+        return await _run_ocr()
 
     @classmethod
     def _extract_page_text_with_tables(cls, page: pymupdf.Page) -> str:
@@ -74,7 +144,7 @@ class DocumentParser:
 
     @classmethod
     def extract_text_from_pdf(cls, file_bytes: bytes) -> list[dict[str, int | str]]:
-        """Extract text page by page from PDF bytes with table recognition."""
+        """Extract text page by page from PDF bytes with table recognition (synchronous)."""
         try:
             pages: list[dict[str, int | str]] = []
             with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
@@ -83,9 +153,80 @@ class DocumentParser:
                     text = cls._extract_page_text_with_tables(page)
                     pages.append({
                         "page_number": page_index + 1,
-                        "text": text if text else "[Page has no selectable text layer or is a scanned image]",
+                        "text": text.strip() if text else "",
                     })
+
+            total_content = "".join(str(p["text"]).strip() for p in pages)
+            if not total_content:
+                raise BadRequestException(
+                    message=(
+                        "Tài liệu là file PDF scan/ảnh và không có lớp văn bản điện tử (selectable text). "
+                        "Hệ thống không thể trích xuất nội dung văn bản."
+                    )
+                )
+
             return pages
+        except BadRequestException:
+            raise
+        except Exception as e:
+            logger.error("Failed to parse PDF document: %s", e)
+            raise BadRequestException(
+                message=f"Failed to read PDF document or file is corrupted: {str(e)}"
+            ) from e
+
+    @classmethod
+    async def extract_text_from_pdf_async(
+        cls, file_bytes: bytes, enable_ocr: bool = True
+    ) -> list[dict[str, int | str]]:
+        """Extract text from PDF with asynchronous Gemini Vision OCR fallback for scanned pages."""
+        try:
+            pages: list[dict[str, int | str]] = []
+            scanned_pages_to_ocr: list[tuple[int, pymupdf.Page]] = []
+
+            with pymupdf.open(stream=file_bytes, filetype="pdf") as doc:
+                for page_index in range(len(doc)):
+                    page = doc[page_index]
+                    text = cls._extract_page_text_with_tables(page)
+                    # If page text is empty or negligible, mark as scanned candidate
+                    if not text.strip():
+                        scanned_pages_to_ocr.append((page_index, page))
+                        pages.append({"page_number": page_index + 1, "text": ""})
+                    else:
+                        pages.append({"page_number": page_index + 1, "text": text.strip()})
+
+                # If scanned pages detected and OCR is enabled and API key is configured
+                if scanned_pages_to_ocr and enable_ocr and settings.GEMINI_API_KEY:
+                    logger.info(
+                        "Detected %d / %d scanned pages without text layer in PDF. Initiating Gemini Vision OCR...",
+                        len(scanned_pages_to_ocr),
+                        len(doc),
+                    )
+                    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+                    semaphore = asyncio.Semaphore(4)  # Concurrency limit to prevent rate limiting
+
+                    tasks = [
+                        cls._ocr_page_with_gemini(page, client, semaphore)
+                        for _, page in scanned_pages_to_ocr
+                    ]
+                    ocr_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                    for (page_idx, _), res in zip(scanned_pages_to_ocr, ocr_results, strict=False):
+                        if isinstance(res, str) and res.strip():
+                            pages[page_idx]["text"] = res.strip()
+
+            # Verify that document contains actual readable text
+            total_content = "".join(str(p["text"]).strip() for p in pages)
+            if not total_content:
+                raise BadRequestException(
+                    message=(
+                        "Tài liệu là file PDF scan/ảnh và không có lớp văn bản điện tử (selectable text). "
+                        "Hệ thống không thể trích xuất nội dung văn bản để lập chỉ mục."
+                    )
+                )
+
+            return pages
+        except BadRequestException:
+            raise
         except Exception as e:
             logger.error("Failed to parse PDF document: %s", e)
             raise BadRequestException(
@@ -109,11 +250,34 @@ class DocumentParser:
 
     @classmethod
     def parse(cls, file_bytes: bytes, file_name: str) -> list[dict[str, int | str]]:
-        """Parse document bytes based on file extension."""
+        """Parse document bytes based on file extension (synchronous)."""
         suffix = Path(file_name).suffix.lower()
 
         if suffix == ".pdf":
             pages = cls.extract_text_from_pdf(file_bytes)
+        elif suffix in (".txt", ".md"):
+            pages = cls.extract_text_from_plain_text(file_bytes)
+        else:
+            raise BadRequestException(
+                message=f"Unsupported file format '{suffix}'. Supported formats: .pdf, .txt, .md."
+            )
+
+        if not pages:
+            raise BadRequestException(
+                message="Document contains no text content to process."
+            )
+
+        return pages
+
+    @classmethod
+    async def parse_async(
+        cls, file_bytes: bytes, file_name: str, enable_ocr: bool = True
+    ) -> list[dict[str, int | str]]:
+        """Parse document bytes asynchronously with OCR fallback for scanned documents."""
+        suffix = Path(file_name).suffix.lower()
+
+        if suffix == ".pdf":
+            pages = await cls.extract_text_from_pdf_async(file_bytes, enable_ocr=enable_ocr)
         elif suffix in (".txt", ".md"):
             pages = cls.extract_text_from_plain_text(file_bytes)
         else:

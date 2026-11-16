@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 150
 
+    # Object Storage (MinIO / S3 compatible)
+    STORAGE_BACKEND: str = "minio"  # "minio" or "local"
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin123"
+    MINIO_SECURE: bool = False
+    MINIO_BUCKET_NAME: str = "huce-kms-documents"
+    MINIO_URL_EXPIRY_SECONDS: int = 3600
+    MINIO_PUBLIC_ENDPOINT: str | None = None
+
     # Crawler Configuration
     CRAWLER_DATA_DIR: Path = BACKEND_DIR / "data" / "crawled"
     CRAWLER_ALLOWED_DOMAINS: list[str] = [

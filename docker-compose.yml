@@ -45,12 +45,37 @@ services:
     networks:
       - huce-kms-network
 
+  # MinIO Object Storage (S3-compatible Document Storage via MinIO OSS / Silo)
+  minio:
+    image: pgsty/silo:latest
+    container_name: huce-kms-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"         # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001" # Web Management Console Dashboard
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - huce-kms-network
+
 # Persistent Volumes
 volumes:
   postgres_data:
     name: huce-kms-postgres-data
   qdrant_data:
     name: huce-kms-qdrant-data
+  minio_data:
+    name: huce-kms-minio-data
 
 # Isolated Bridge Network
 networks:

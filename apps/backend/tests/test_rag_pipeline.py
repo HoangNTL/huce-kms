@@ -30,9 +30,29 @@ class TestDocumentParser(unittest.TestCase):
         with self.assertRaises(BadRequestException):
             DocumentParser.extract_text_from_pdf(corrupt_bytes)
 
+    def test_extract_pdf_scanned_without_text_raises_bad_request(self):
+        import pymupdf
+        doc = pymupdf.open()
+        doc.new_page()  # blank page without text
+        pdf_bytes = doc.tobytes()
+        doc.close()
+
+        with self.assertRaises(BadRequestException) as ctx:
+            DocumentParser.extract_text_from_pdf(pdf_bytes)
+        self.assertIn("scan", str(ctx.exception.message).lower())
+
 
 class TestTextChunker(unittest.TestCase):
     """Unit tests for TextChunker text splitting and overlap logic."""
+
+    def test_chunker_empty_pages_produce_no_chunks(self):
+        chunker = TextChunker(chunk_size=100, chunk_overlap=20)
+        pages = [
+            {"page_number": 1, "text": ""},
+            {"page_number": 2, "text": "   \n\n   "},
+        ]
+        chunks = chunker.chunk_pages(pages)
+        self.assertEqual(len(chunks), 0)
 
     def test_chunker_basic_splitting(self):
         chunker = TextChunker(chunk_size=100, chunk_overlap=20)

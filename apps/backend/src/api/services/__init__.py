@@ -9,6 +9,7 @@ from api.services.rag import (
     RAGService,
     TextChunker,
 )
+from api.services.storage import StorageService, get_storage_service
 from api.services.user import UserService
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "GeminiEmbeddingService",
     "QdrantVectorStore",
     "RAGService",
+    "StorageService",
     "TextChunker",
     "UserService",
+    "get_storage_service",
 ]
