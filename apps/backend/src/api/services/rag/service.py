@@ -3,7 +3,6 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 from google import genai
-from google.genai import types
 
 from api.core.config import settings
 from api.core.exceptions import BadRequestException
@@ -11,6 +10,12 @@ from api.schemas.rag import (
     CitationSource,
     RAGQueryResponse,
     SearchResultItem,
+)
+from api.services.ai.managers.embedding_manager import EmbeddingManager
+from api.services.ai.managers.generation_manager import GenerationManager
+from api.services.ai.schemas.ai import (
+    AIProviderError,
+    GenerationRequest,
 )
 from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.vector_store import QdrantVectorStore
@@ -29,22 +34,24 @@ Strict Guidelines:
 
 
 class RAGService:
-    """Orchestrates semantic retrieval, prompt augmentation, and Gemini generative QA."""
+    """Orchestrates semantic retrieval, prompt augmentation, and multi-provider generative QA."""
 
     def __init__(
         self,
-        embedder: GeminiEmbeddingService,
-        vector_store: QdrantVectorStore,
+        embedder: EmbeddingManager | GeminiEmbeddingService | None = None,
+        vector_store: QdrantVectorStore | None = None,
+        generation_manager: GenerationManager | None = None,
         llm_model: str = settings.LLM_MODEL,
     ):
-        self.embedder = embedder
-        self.vector_store = vector_store
+        self.embedder = embedder or GeminiEmbeddingService()
+        self.vector_store = vector_store or QdrantVectorStore()
+        self.generation_manager = generation_manager or GenerationManager()
         self.llm_model = llm_model
         self._llm_client: genai.Client | None = None
 
     @property
     def llm_client(self) -> genai.Client:
-        """Get or initialize the Google GenAI client for LLM generation."""
+        """Backwards-compatible access to Google GenAI client."""
         api_key = settings.GEMINI_API_KEY
         if not api_key:
             raise BadRequestException(
@@ -62,7 +69,7 @@ class RAGService:
         score_threshold: float | None = 0.4,
     ) -> list[SearchResultItem]:
         """Perform semantic vector search against Qdrant knowledge base."""
-        # 1. Generate query embedding vector
+        # 1. Generate query embedding vector via EmbeddingManager
         query_vector = await self.embedder.generate_embedding(query)
 
         # 2. Retrieve nearest vector points from Qdrant
@@ -128,7 +135,7 @@ class RAGService:
         top_k: int = 5,
         temperature: float = 0.3,
     ) -> RAGQueryResponse:
-        """Execute RAG question-answering with context retrieval and Gemini LLM synthesis."""
+        """Execute RAG question-answering with context retrieval and multi-provider LLM synthesis."""
         # 1. Retrieve relevant knowledge chunks
         chunks = await self.search(
             query=query,
@@ -154,48 +161,33 @@ class RAGService:
         context_str, sources = self._build_context_and_sources(chunks)
         augmented_prompt = f"User Question: {query}\n\nInstitutional Context Excerpts:\n{context_str}\n\nPlease provide a clear, accurate answer referencing the documents above."
 
-        # 4. Generate answer via Google Gemini API with retry for transient 429/503 errors
-        config = types.GenerateContentConfig(
+        # 4. Generate answer via Multi-Provider GenerationManager with automatic fallback
+        gen_request = GenerationRequest(
+            prompt=augmented_prompt,
             system_instruction=HUCE_SYSTEM_INSTRUCTION,
             temperature=temperature,
         )
 
-        for attempt in range(3):
-            try:
-                response = await self.llm_client.aio.models.generate_content(
-                    model=self.llm_model,
-                    contents=augmented_prompt,
-                    config=config,
-                )
+        try:
+            result = await self.generation_manager.generate(gen_request)
+            answer_text = result.text or "Unable to generate an answer from the provided context."
 
-                answer_text = response.text or "Unable to generate an answer from the provided context."
-
-                return RAGQueryResponse(
-                    query=query,
-                    answer=answer_text,
-                    sources=sources,
-                    total_sources=len(sources),
-                )
-            except Exception as e:
-                err_str = str(e)
-                is_transient = any(
-                    code in err_str
-                    for code in ["429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE"]
-                )
-                if is_transient and attempt < 2:
-                    wait_time = (attempt + 1) * 3.0
-                    logger.warning(
-                        "Gemini generation transient error on attempt %d/3 (%s). Retrying in %.1fs...",
-                        attempt + 1,
-                        err_str,
-                        wait_time,
-                    )
-                    await asyncio.sleep(wait_time)
-                else:
-                    logger.error("Gemini text generation failed: %s", e)
-                    raise BadRequestException(
-                        message=f"Error generating answer via Google Gemini: {str(e)}"
-                    ) from e
+            return RAGQueryResponse(
+                query=query,
+                answer=answer_text,
+                sources=sources,
+                total_sources=len(sources),
+            )
+        except AIProviderError as pie:
+            logger.error("Multi-provider generation failed: %s", pie)
+            raise BadRequestException(
+                message=f"Lỗi tạo câu trả lời từ AI ({pie.provider}): {pie.message}"
+            ) from pie
+        except Exception as e:
+            logger.error("Unexpected error in RAG answer generation: %s", e)
+            raise BadRequestException(
+                message=f"Error generating answer via AI provider: {str(e)}"
+            ) from e
 
     async def stream_query(
         self,
@@ -226,20 +218,16 @@ class RAGService:
         context_str, sources = self._build_context_and_sources(chunks)
         augmented_prompt = f"User Question: {query}\n\nInstitutional Context Excerpts:\n{context_str}\n\nPlease provide a clear, accurate answer referencing the documents above."
 
-        try:
-            config = types.GenerateContentConfig(
-                system_instruction=HUCE_SYSTEM_INSTRUCTION,
-                temperature=temperature,
-            )
-            response_stream = await self.llm_client.aio.models.generate_content_stream(
-                model=self.llm_model,
-                contents=augmented_prompt,
-                config=config,
-            )
+        gen_request = GenerationRequest(
+            prompt=augmented_prompt,
+            system_instruction=HUCE_SYSTEM_INSTRUCTION,
+            temperature=temperature,
+        )
 
-            async for chunk in response_stream:
-                if chunk.text:
-                    payload = {"type": "token", "content": chunk.text}
+        try:
+            async for token in self.generation_manager.generate_stream(gen_request):
+                if token.content:
+                    payload = {"type": "token", "content": token.content}
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
             # Send citation sources at stream end
@@ -251,7 +239,7 @@ class RAGService:
             yield "data: [DONE]\n\n"
 
         except Exception as e:
-            logger.error("Gemini streaming generation failed: %s", e)
+            logger.error("Multi-provider streaming generation failed: %s", e)
             error_payload = {"type": "error", "message": f"Streaming failed: {str(e)}"}
             yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"

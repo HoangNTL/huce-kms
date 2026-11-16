@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 from fastapi import APIRouter, Depends, status
 
 from api.core.config import settings
@@ -17,21 +17,24 @@ from api.schemas.crawler import (
     IngestSessionRequest,
 )
 from api.services.crawler.core.engine import CrawlerCoreEngine
+from api.services.ai.managers.embedding_manager import EmbeddingManager
 from api.services.crawler.discovery.engine import DiscoveryEngine
 from api.services.crawler.ingestion.adapter import CrawlIngestionAdapter
 from api.services.crawler.registry.review_queue import ReviewQueueManager
 from api.services.document import DocumentService
-from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.vector_store import QdrantVectorStore
+from api.v1.routes.rag import get_embedding_manager
 
 router = APIRouter()
 
 
-def get_crawler_adapter(db: DatabaseDep) -> CrawlIngestionAdapter:
+def get_crawler_adapter(
+    db: DatabaseDep,
+    embedder: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
+) -> CrawlIngestionAdapter:
     doc_repo = DocumentRepository(db)
     chunk_repo = DocumentChunkRepository(db)
     cat_repo = CategoryRepository(db)
-    embedder = GeminiEmbeddingService()
     vector_store = QdrantVectorStore()
     doc_service = DocumentService(
         document_repo=doc_repo,

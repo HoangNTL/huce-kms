@@ -8,18 +8,21 @@ from api.repositories.document import DocumentRepository
 from api.repositories.document_chunk import DocumentChunkRepository
 from api.schemas.common import BaseResponse, PaginatedData, PaginationMeta
 from api.schemas.document import DocumentDetailResponse, DocumentResponse
+from api.services.ai.managers.embedding_manager import EmbeddingManager
 from api.services.document import DocumentService
-from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.vector_store import QdrantVectorStore
+from api.v1.routes.rag import get_embedding_manager
 
 router = APIRouter()
 
 
-def get_document_service(db: DatabaseDep) -> DocumentService:
+def get_document_service(
+    db: DatabaseDep,
+    embedder: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
+) -> DocumentService:
     document_repo = DocumentRepository(db)
     chunk_repo = DocumentChunkRepository(db)
     category_repo = CategoryRepository(db)
-    embedder = GeminiEmbeddingService()
     vector_store = QdrantVectorStore()
     return DocumentService(
         document_repo=document_repo,

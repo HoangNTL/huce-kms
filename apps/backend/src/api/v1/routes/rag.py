@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
@@ -9,17 +10,34 @@ from api.schemas.rag import (
     SearchRequest,
     SearchResponse,
 )
-from api.services.rag.embedder import GeminiEmbeddingService
+from api.services.ai.managers.embedding_manager import EmbeddingManager
+from api.services.ai.managers.generation_manager import GenerationManager
 from api.services.rag.service import RAGService
 from api.services.rag.vector_store import QdrantVectorStore
 
 router = APIRouter()
 
 
-def get_rag_service() -> RAGService:
-    embedder = GeminiEmbeddingService()
+@lru_cache(maxsize=1)
+def get_generation_manager() -> GenerationManager:
+    return GenerationManager()
+
+
+@lru_cache(maxsize=1)
+def get_embedding_manager() -> EmbeddingManager:
+    return EmbeddingManager()
+
+
+def get_rag_service(
+    embedder: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
+    generation_manager: Annotated[GenerationManager, Depends(get_generation_manager)],
+) -> RAGService:
     vector_store = QdrantVectorStore()
-    return RAGService(embedder=embedder, vector_store=vector_store)
+    return RAGService(
+        embedder=embedder,
+        vector_store=vector_store,
+        generation_manager=generation_manager,
+    )
 
 
 RAGServiceDep = Annotated[RAGService, Depends(get_rag_service)]

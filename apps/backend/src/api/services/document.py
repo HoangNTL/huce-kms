@@ -19,6 +19,7 @@ from api.schemas.document import (
     DocumentDetailResponse,
     DocumentResponse,
 )
+from api.services.ai.managers.embedding_manager import EmbeddingManager
 from api.services.rag.chunker import TextChunker
 from api.services.rag.cleaner import TextCleaner
 from api.services.rag.embedder import GeminiEmbeddingService
@@ -36,7 +37,7 @@ class DocumentService:
         document_repo: DocumentRepository,
         chunk_repo: DocumentChunkRepository,
         category_repo: CategoryRepository,
-        embedder: GeminiEmbeddingService,
+        embedder: EmbeddingManager | GeminiEmbeddingService,
         vector_store: QdrantVectorStore,
     ):
         self.document_repo = document_repo

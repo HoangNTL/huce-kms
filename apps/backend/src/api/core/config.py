@@ -35,14 +35,36 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str | None = None
     QDRANT_COLLECTION_NAME: str = "huce_kms_documents"
 
-    # AI / LLM & Embedding Configuration (Google Gemini)
+    # AI / LLM & Embedding Configuration (Multi-Provider Support)
     LLM_PROVIDER: str = "gemini"
     LLM_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_API_KEY: str | None = None
 
+    GENERATION_PROVIDERS: str | list[str] = ["gemini", "groq", "openrouter"]
+    GENERATION_MAX_RETRIES: int = 2
+    GENERATION_TIMEOUT: float = 30.0
+    PROVIDER_COOLDOWN_SECONDS: int = 900
+
+    # Groq Provider Settings
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    # OpenRouter Provider Settings
+    OPENROUTER_API_KEY: str | None = None
+    OPENROUTER_MODEL: str = "deepseek/deepseek-chat"
+
+    # Embedding Providers Configuration
     EMBEDDING_PROVIDER: str = "gemini"
     EMBEDDING_MODEL_NAME: str = "gemini-embedding-001"
     VECTOR_DIMENSION: int = 768
+
+    # Voyage AI Provider Settings
+    VOYAGE_API_KEY: str | None = None
+    VOYAGE_MODEL: str = "voyage-3-lite"
+
+    # Jina AI Provider Settings
+    JINA_API_KEY: str | None = None
+    JINA_MODEL: str = "jina-embeddings-v3"
 
     # Document Upload & Ingestion Configuration
     UPLOAD_DIR: Path = BACKEND_DIR / "uploads"
@@ -86,7 +108,40 @@ class Settings(BaseSettings):
             return value.strip().lower() in ("true", "1", "yes", "on", "debug")
         return bool(value)
 
-    @field_validator("GEMINI_API_KEY", "QDRANT_API_KEY", mode="before")
+    @field_validator("GENERATION_PROVIDERS", mode="before")
+    @classmethod
+    def parse_generation_providers(cls, value: Any) -> list[str]:
+        """Support comma-separated string, JSON array, or list for GENERATION_PROVIDERS in .env."""
+        import json
+
+        default_providers = ["gemini", "groq", "openrouter"]
+        if value is None:
+            return default_providers
+        if isinstance(value, str):
+            val = value.strip().strip("'\"")
+            if not val:
+                return default_providers
+            if val.startswith("[") and val.endswith("]"):
+                try:
+                    parsed = json.loads(val)
+                    if isinstance(parsed, list):
+                        return [str(p).strip().lower() for p in parsed if str(p).strip()]
+                except Exception:
+                    pass
+            return [p.strip().lower() for p in val.split(",") if p.strip()]
+        if isinstance(value, (list, tuple)):
+            return [str(p).strip().lower() for p in value if str(p).strip()]
+        return default_providers
+
+    @field_validator(
+        "GEMINI_API_KEY",
+        "QDRANT_API_KEY",
+        "GROQ_API_KEY",
+        "OPENROUTER_API_KEY",
+        "VOYAGE_API_KEY",
+        "JINA_API_KEY",
+        mode="before",
+    )
     @classmethod
     def empty_str_to_none(cls, value: Any) -> str | None:
         """Sanitize optional API keys: strip quotes/whitespace and treat empty strings as None."""
