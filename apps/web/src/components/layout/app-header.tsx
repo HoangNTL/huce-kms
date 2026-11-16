@@ -30,6 +30,7 @@ export function AppHeader() {
 
   const getBreadcrumb = () => {
     if (pathname.includes("/admin/users")) return "Người dùng"
+    if (pathname.includes("/admin/categories")) return "Danh mục"
     if (pathname.includes("/admin/documents/")) return "Chi tiết tài liệu"
     if (pathname.includes("/admin/documents")) return "Tài liệu"
     if (pathname.includes("/admin/crawler")) return "Thu thập dữ liệu"

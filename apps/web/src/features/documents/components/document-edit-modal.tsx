@@ -66,12 +66,7 @@ function DocumentEditFormContent({
   const [isLoading, setIsLoading] = React.useState(false)
 
   const categoryOptions: Record<string, string> = React.useMemo(() => {
-    const map: Record<string, string> = {
-      "1": "Quy chế Đào tạo",
-      "2": "Quy chế Sinh viên",
-      "3": "Học bổng, học phí",
-      "4": "Biểu mẫu Hành chính",
-    }
+    const map: Record<string, string> = {}
     for (const cat of categories) {
       map[String(cat.id)] = cat.name
     }
@@ -154,12 +149,9 @@ function DocumentEditFormContent({
                   </SelectItem>
                 ))
               ) : (
-                <>
-                  <SelectItem value="1">Quy chế Đào tạo</SelectItem>
-                  <SelectItem value="2">Quy chế Sinh viên</SelectItem>
-                  <SelectItem value="3">Học bổng, học phí</SelectItem>
-                  <SelectItem value="4">Biểu mẫu Hành chính</SelectItem>
-                </>
+                <SelectItem value="" disabled>
+                  Chưa có danh mục nào
+                </SelectItem>
               )}
             </SelectContent>
           </Select>

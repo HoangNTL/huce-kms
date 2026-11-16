@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Users,
   FileText,
+  FolderTree,
   Globe,
   Plus,
   MessageSquare,
@@ -32,6 +33,11 @@ const adminNavItems = [
     title: "Tài liệu",
     href: ROUTES.ADMIN.DOCUMENTS,
     icon: FileText,
+  },
+  {
+    title: "Danh mục",
+    href: ROUTES.ADMIN.CATEGORIES,
+    icon: FolderTree,
   },
   {
     title: "Thu thập dữ liệu",

@@ -172,13 +172,15 @@ export default function AdminDocumentsPage() {
             Quản lý Tài liệu Tri thức
           </h1>
         </div>
-        <Button
-          onClick={() => setIsUploadOpen(true)}
-          className="h-8 gap-1.5 rounded-lg bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Tải lên</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsUploadOpen(true)}
+            className="h-8 gap-1.5 rounded-lg bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Tải lên</span>
+          </Button>
+        </div>
       </div>
 
       <Card className="rounded-2xl border border-slate-200/80 bg-surface shadow-xs py-0 gap-0 overflow-hidden">
@@ -439,7 +441,7 @@ export default function AdminDocumentsPage() {
               dữ liệu liên quan sẽ bị xóa vĩnh viễn.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button
               variant="outline"
               size="sm"

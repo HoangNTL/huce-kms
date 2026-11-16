@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, FileText, Search, Pencil, Download, AlertCircle, ExternalLink } from "lucide-react"
+import { ArrowLeft, Loader2, FileText, Search, Pencil, AlertCircle, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -151,19 +151,9 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
     <div className="w-full space-y-4">
       {/* 1. Page Header Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h1 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate" title={doc.title}>
-            {doc.title}
-          </h1>
-          <button
-            type="button"
-            onClick={() => setIsEditModalOpen(true)}
-            title="Chỉnh sửa tiêu đề & danh mục"
-            className="cursor-pointer text-muted hover:text-brand-primary transition-colors p-1 rounded-md hover:bg-surface-hover shrink-0"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <h1 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate" title={doc.title}>
+          {doc.title}
+        </h1>
         <div className="flex items-center gap-2 shrink-0">
           {doc.download_url && (
             <a
@@ -216,22 +206,9 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                 </div>
                 <div className="flex items-center justify-between gap-3 min-w-0">
                   <span className="shrink-0">Tên tệp gốc</span>
-                  {doc.download_url ? (
-                    <a
-                      href={doc.download_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="max-w-[180px] truncate font-medium text-brand-primary hover:underline text-right inline-flex items-center gap-1"
-                      title={`Xem tệp ${doc.file_name}`}
-                    >
-                      <span className="truncate">{doc.file_name}</span>
-                      <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
-                    </a>
-                  ) : (
-                    <span className="max-w-[180px] truncate font-medium text-heading text-right" title={doc.file_name}>
-                      {doc.file_name}
-                    </span>
-                  )}
+                  <span className="max-w-[180px] truncate font-medium text-heading text-right" title={doc.file_name}>
+                    {doc.file_name}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Định dạng</span>

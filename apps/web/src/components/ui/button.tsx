@@ -17,7 +17,7 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-brand-primary-subtle hover:text-brand-primary aria-expanded:bg-brand-primary-subtle aria-expanded:text-brand-primary dark:hover:bg-accent/50",
         destructive:
-          "bg-destructive/10 text-destructive shadow-xs hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-rose-600 text-white shadow-xs hover:bg-rose-700 focus-visible:border-rose-700 focus-visible:ring-rose-500/30 dark:bg-rose-600 dark:hover:bg-rose-700",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

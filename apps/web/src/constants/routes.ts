@@ -19,6 +19,7 @@ export const ROUTES = {
     USERS: "/admin/users",
     DOCUMENTS: "/admin/documents",
     DOCUMENT_DETAIL: (id: string) => `/admin/documents/${id}`,
+    CATEGORIES: "/admin/categories",
     CRAWLER: "/admin/crawler",
     PROFILE: "/admin/profile",
   },

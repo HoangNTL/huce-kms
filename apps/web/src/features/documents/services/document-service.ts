@@ -123,7 +123,30 @@ export const documentService = {
   },
 
   async getCategories(): Promise<CategoryItem[]> {
-    return apiClient.get<CategoryItem[]>("/categories")
+    return apiClient.get<CategoryItem[]>("/categories/")
+  },
+
+  async getCategory(id: number | string): Promise<CategoryItem> {
+    return apiClient.get<CategoryItem>(`/categories/${id}`)
+  },
+
+  async createCategory(data: {
+    name: string
+    description?: string
+    slug?: string
+  }): Promise<CategoryItem> {
+    return apiClient.post<CategoryItem>("/categories/", data)
+  },
+
+  async updateCategory(
+    id: number | string,
+    data: { name?: string; description?: string; slug?: string }
+  ): Promise<CategoryItem> {
+    return apiClient.patch<CategoryItem>(`/categories/${id}`, data)
+  },
+
+  async deleteCategory(id: number | string): Promise<void> {
+    return apiClient.delete<void>(`/categories/${id}`)
   },
 
   async getDocumentDownloadUrl(id: string | number): Promise<{ download_url: string }> {
