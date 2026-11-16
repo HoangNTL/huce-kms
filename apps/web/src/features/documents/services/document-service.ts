@@ -113,6 +113,13 @@ export const documentService = {
     return apiClient.delete<{ message: string }>(`/documents/${id}`)
   },
 
+  async updateDocument(
+    id: string | number,
+    data: { title?: string; category_id?: number | null }
+  ): Promise<DocumentMetadata> {
+    return apiClient.patch<DocumentMetadata>(`/documents/${id}`, data)
+  },
+
   async getCategories(): Promise<CategoryItem[]> {
     return apiClient.get<CategoryItem[]>("/categories")
   },

@@ -189,7 +189,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
               value={title}
               onChange={handleTitleChange}
               disabled={isLoading}
-              className="w-full min-w-0 rounded-xl text-xs"
+              className="w-full min-w-0 rounded-lg text-xs"
             />
           </div>
 
@@ -200,7 +200,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
               value={selectedCategoryId}
               onValueChange={(val) => setSelectedCategoryId(val || "")}
             >
-              <SelectTrigger id="category" className="w-full">
+              <SelectTrigger id="category" className="w-full rounded-lg text-xs">
                 <SelectValue placeholder="Chọn danh mục">
                   {(val) => categoryOptions[String(val)] || "Chọn danh mục"}
                 </SelectValue>
@@ -272,17 +272,17 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
-            className="rounded-xl text-xs"
           >
             Hủy
           </Button>
           <Button
             size="sm"
             onClick={handleUpload}
-            disabled={!file || isLoading}
-            className="rounded-xl bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
+            loading={isLoading}
+            loadingText="Đang tải lên..."
+            disabled={!file}
           >
-            {isLoading ? "Đang tải lên..." : "Tải lên"}
+            Tải lên
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -22,7 +22,7 @@ export function ProfileView() {
     }
   }, [user, fetchCurrentUser])
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast.error("Vui lòng điền đầy đủ các trường thông tin")
@@ -117,7 +117,7 @@ export function ProfileView() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 disabled={isLoading}
-                className="rounded-xl text-xs"
+                className="rounded-lg text-xs"
               />
             </div>
 
@@ -133,7 +133,7 @@ export function ProfileView() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   disabled={isLoading}
-                  className="rounded-xl text-xs"
+                  className="rounded-lg text-xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -147,7 +147,7 @@ export function ProfileView() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isLoading}
-                  className="rounded-xl text-xs"
+                  className="rounded-lg text-xs"
                 />
               </div>
             </div>
@@ -155,10 +155,10 @@ export function ProfileView() {
             <Button
               type="submit"
               size="sm"
-              className="rounded-xl bg-brand-primary text-xs font-medium text-white hover:bg-brand-primary-hover shadow-xs"
-              disabled={isLoading}
+              loading={isLoading}
+              loadingText="Đang xử lý..."
             >
-              {isLoading ? "Đang xử lý..." : "Đổi mật khẩu"}
+              Đổi mật khẩu
             </Button>
           </form>
         </CardContent>

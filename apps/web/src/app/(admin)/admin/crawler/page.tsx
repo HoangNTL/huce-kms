@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   CheckCircle2,
-  Loader2,
   Check,
   ExternalLink,
   RotateCw,
@@ -103,7 +102,7 @@ export default function AdminCrawlerPage() {
   }, [])
 
   // 1. Handle Direct Crawl
-  const handleDirectCrawl = async (e: React.FormEvent) => {
+  const handleDirectCrawl = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     const trimmed = directUrl.trim()
     if (!trimmed) {
@@ -133,7 +132,7 @@ export default function AdminCrawlerPage() {
   }
 
   // 2. Handle Discovery
-  const handleDiscovery = async (e: React.FormEvent) => {
+  const handleDiscovery = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     const trimmed = discoveryUrl.trim()
     if (!trimmed) {
@@ -278,17 +277,10 @@ export default function AdminCrawlerPage() {
 
                 <Button
                   type="submit"
-                  disabled={isCrawlingDirect}
-                  className="bg-brand-primary text-xs text-white hover:bg-brand-primary-hover"
+                  loading={isCrawlingDirect}
+                  loadingText="Đang thu thập dữ liệu..."
                 >
-                  {isCrawlingDirect ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      Đang thu thập dữ liệu...
-                    </>
-                  ) : (
-                    "Thu thập dữ liệu"
-                  )}
+                  Thu thập dữ liệu
                 </Button>
               </form>
             </CardContent>
@@ -363,17 +355,10 @@ export default function AdminCrawlerPage() {
                 </div>
                 <Button
                   type="submit"
-                  disabled={isDiscovering}
-                  className="bg-brand-primary text-xs text-white hover:bg-brand-primary-hover"
+                  loading={isDiscovering}
+                  loadingText="Đang quét liên kết..."
                 >
-                  {isDiscovering ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      Đang quét liên kết...
-                    </>
-                  ) : (
-                    "Khám phá"
-                  )}
+                  Khám phá
                 </Button>
               </form>
             </CardContent>

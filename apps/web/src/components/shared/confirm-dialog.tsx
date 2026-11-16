@@ -51,7 +51,7 @@ export function ConfirmDialog({
               onConfirm()
               onOpenChange(false)
             }}
-            disabled={isLoading}
+            loading={isLoading}
           >
             {confirmText}
           </Button>

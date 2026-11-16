@@ -179,13 +179,14 @@ export function RegisterForm() {
         )}
       </div>
 
-      {/* Nút Đăng ký (không icon, gọn gàng, thanh lịch) */}
+      {/* Nút Đăng ký */}
       <Button
         type="submit"
-        className="mt-2 w-full bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold"
-        disabled={isLoading}
+        className="mt-2 w-full font-semibold"
+        loading={isLoading}
+        loadingText="Đang xử lý..."
       >
-        {isLoading ? "Đang xử lý..." : "Đăng ký tài khoản"}
+        Đăng ký tài khoản
       </Button>
     </form>
   )

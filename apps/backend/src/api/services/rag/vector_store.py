@@ -107,6 +107,34 @@ class QdrantVectorStore:
         )
         logger.info("Deleted Qdrant points for document_id=%d", document_id)
 
+    async def update_payload_by_document_id(
+        self, document_id: int, payload: dict[str, Any]
+    ) -> None:
+        """Update metadata payload of all chunks belonging to a document without re-embedding."""
+        if not payload:
+            return
+
+        await self.ensure_collection()
+        client = self.get_client()
+
+        await client.set_payload(
+            collection_name=self.collection_name,
+            payload=payload,
+            points=Filter(
+                must=[
+                    FieldCondition(
+                        key="document_id",
+                        match=MatchValue(value=document_id),
+                    )
+                ]
+            ),
+        )
+        logger.info(
+            "Updated Qdrant payload for document_id=%d: %s",
+            document_id,
+            list(payload.keys()),
+        )
+
     async def search(
         self,
         query_vector: list[float],

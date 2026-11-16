@@ -7,7 +7,7 @@ from api.repositories.category import CategoryRepository
 from api.repositories.document import DocumentRepository
 from api.repositories.document_chunk import DocumentChunkRepository
 from api.schemas.common import BaseResponse, PaginatedData, PaginationMeta
-from api.schemas.document import DocumentDetailResponse, DocumentResponse
+from api.schemas.document import DocumentDetailResponse, DocumentResponse, DocumentUpdate
 from api.services.ai.managers.embedding_manager import EmbeddingManager
 from api.services.document import DocumentService
 from api.services.rag.vector_store import QdrantVectorStore
@@ -123,6 +123,25 @@ async def get_document(
     return BaseResponse(
         message="Document details retrieved successfully.",
         data=document,
+    )
+
+
+@router.patch(
+    "/{document_id}",
+    response_model=BaseResponse[DocumentResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Update document title or category metadata (Admin only)",
+)
+async def update_document(
+    document_id: Annotated[int, Path(ge=1, description="Document unique identifier")],
+    payload: DocumentUpdate,
+    admin_user: AdminUserDep,
+    service: DocumentServiceDep,
+):
+    updated = await service.update_document(document_id, payload)
+    return BaseResponse(
+        message="Document updated successfully.",
+        data=updated,
     )
 
 

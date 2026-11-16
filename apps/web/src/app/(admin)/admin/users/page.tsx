@@ -152,7 +152,7 @@ export default function AdminUsersPage() {
                   setSearchTerm(e.target.value)
                   setCurrentPage(1)
                 }}
-                className="pl-9 text-xs rounded-xl"
+                className="pl-9 text-xs rounded-lg"
               />
             </div>
 
@@ -166,7 +166,7 @@ export default function AdminUsersPage() {
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 min-w-36 rounded-xl text-xs">
+                <SelectTrigger className="h-8 min-w-36 rounded-lg text-xs">
                   <SelectValue placeholder="Tất cả vai trò">
                     {(val) => ROLE_OPTIONS[String(val)] || "Tất cả vai trò"}
                   </SelectValue>
@@ -186,7 +186,7 @@ export default function AdminUsersPage() {
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 min-w-36 rounded-xl text-xs">
+                <SelectTrigger className="h-8 min-w-36 rounded-lg text-xs">
                   <SelectValue placeholder="Tất cả trạng thái">
                     {(val) => STATUS_OPTIONS[String(val)] || "Tất cả trạng thái"}
                   </SelectValue>
@@ -208,7 +208,7 @@ export default function AdminUsersPage() {
                     setStatusFilter("ALL")
                     setCurrentPage(1)
                   }}
-                  className="h-8 gap-1 rounded-xl text-xs text-muted hover:text-heading"
+                  className="h-8 gap-1 rounded-lg text-xs text-muted hover:text-heading"
                 >
                   <RotateCcw className="h-3 w-3" />
                   <span>Đặt lại</span>
@@ -330,13 +330,13 @@ export default function AdminUsersPage() {
                         <TableCell className="text-right pr-5">
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="icon-sm"
                             onClick={() => setToggleTarget(user)}
                             title={isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-                            className={`h-8 w-8 rounded-lg border transition-colors ${
+                            className={`h-7 w-7 rounded-lg transition-colors ${
                               isActive
-                                ? "border-rose-200/70 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
-                                : "border-emerald-200/70 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
+                                ? "text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                                : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                             }`}
                           >
                             {isActive ? (
@@ -406,27 +406,22 @@ export default function AdminUsersPage() {
               size="sm"
               onClick={() => setToggleTarget(null)}
               disabled={isUpdatingStatus}
-              className="rounded-xl text-xs"
+              className="rounded-lg text-xs"
             >
               Hủy
             </Button>
             <Button
               size="sm"
-              variant={toggleTarget?.is_active ? "destructive" : "default"}
               onClick={handleConfirmToggleStatus}
-              disabled={isUpdatingStatus}
-              className={`rounded-xl text-xs ${
-                !toggleTarget?.is_active ? "bg-emerald-600 text-white hover:bg-emerald-700" : ""
+              loading={isUpdatingStatus}
+              loadingText="Đang xử lý..."
+              className={`rounded-lg text-xs font-medium text-white shadow-xs ${
+                toggleTarget?.is_active
+                  ? "bg-rose-600 hover:bg-rose-700"
+                  : "bg-emerald-600 hover:bg-emerald-700"
               }`}
             >
-              {isUpdatingStatus ? (
-                <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Đang xử lý...
-                </>
-              ) : (
-                "Xác nhận"
-              )}
+              Xác nhận
             </Button>
           </DialogFooter>
         </DialogContent>

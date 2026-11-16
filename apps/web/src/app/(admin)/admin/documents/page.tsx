@@ -10,6 +10,7 @@ import {
   Loader2,
   FolderOpen,
   AlertCircle,
+  Pencil,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,6 +42,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empt
 import {
   DocumentStatusBadge,
   DocumentUploadModal,
+  DocumentEditModal,
   documentService,
   type DocumentMetadata,
   type CategoryItem,
@@ -81,6 +83,9 @@ export default function AdminDocumentsPage() {
   // Delete Confirmation Dialog State
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string | number; title: string } | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
+
+  // Edit Modal State
+  const [editTarget, setEditTarget] = React.useState<DocumentMetadata | null>(null)
 
   const categoryOptions: Record<string, string> = React.useMemo(() => {
     const map: Record<string, string> = { ALL: "Tất cả danh mục" }
@@ -169,7 +174,7 @@ export default function AdminDocumentsPage() {
         </div>
         <Button
           onClick={() => setIsUploadOpen(true)}
-          className="h-8 gap-1.5 rounded-xl bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
+          className="h-8 gap-1.5 rounded-lg bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
         >
           <Plus className="h-3.5 w-3.5" />
           <span>Tải lên</span>
@@ -190,7 +195,7 @@ export default function AdminDocumentsPage() {
                   setSearchTerm(e.target.value)
                   setCurrentPage(1)
                 }}
-                className="pl-9 text-xs rounded-xl"
+                className="pl-9 text-xs rounded-lg"
               />
             </div>
 
@@ -204,7 +209,7 @@ export default function AdminDocumentsPage() {
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 min-w-40 rounded-xl text-xs">
+                <SelectTrigger className="h-8 min-w-40 rounded-lg text-xs">
                   <SelectValue placeholder="Tất cả danh mục">
                     {(val) => categoryOptions[String(val)] || "Tất cả danh mục"}
                   </SelectValue>
@@ -227,7 +232,7 @@ export default function AdminDocumentsPage() {
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 min-w-36 rounded-xl text-xs">
+                <SelectTrigger className="h-8 min-w-36 rounded-lg text-xs">
                   <SelectValue placeholder="Tất cả trạng thái">
                     {(val) => DOCUMENT_STATUS_OPTIONS[String(val)] || "Tất cả trạng thái"}
                   </SelectValue>
@@ -251,7 +256,7 @@ export default function AdminDocumentsPage() {
                     setStatusFilter("ALL")
                     setCurrentPage(1)
                   }}
-                  className="h-8 gap-1 rounded-xl text-xs text-muted hover:text-heading"
+                  className="h-8 gap-1 rounded-lg text-xs text-muted hover:text-heading"
                 >
                   <RotateCcw className="h-3 w-3" />
                   <span>Đặt lại</span>
@@ -342,7 +347,7 @@ export default function AdminDocumentsPage() {
                         <TableCell>
                           <Link
                             href={ROUTES.ADMIN.DOCUMENT_DETAIL(String(doc.id))}
-                            className="block max-w-md truncate text-xs font-medium text-heading transition-colors hover:text-brand-primary"
+                            className="block max-w-md truncate text-xs font-medium text-heading hover:text-brand-primary hover:underline"
                             title={doc.title}
                           >
                             {doc.title}
@@ -369,17 +374,31 @@ export default function AdminDocumentsPage() {
                           <DocumentStatusBadge status={doc.status} />
                         </TableCell>
 
-                        {/* Column Thao tác */}
+                        {/* Column Thao tác: Chỉnh sửa, Xóa */}
                         <TableCell className="text-right pr-5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
-                            className="h-8 w-8 rounded-lg border border-rose-200/70 bg-rose-50/50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700"
-                            title="Xóa tài liệu"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Nút Chỉnh sửa */}
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setEditTarget(doc)}
+                              className="h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                              title="Chỉnh sửa tài liệu"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+
+                            {/* Nút Xóa */}
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
+                              className="h-7 w-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                              title="Xóa tài liệu"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -426,7 +445,6 @@ export default function AdminDocumentsPage() {
               size="sm"
               onClick={() => setDeleteTarget(null)}
               disabled={isDeleting}
-              className="rounded-xl text-xs"
             >
               Hủy
             </Button>
@@ -434,10 +452,10 @@ export default function AdminDocumentsPage() {
               size="sm"
               variant="destructive"
               onClick={handleConfirmDelete}
-              disabled={isDeleting}
-              className="rounded-xl text-xs"
+              loading={isDeleting}
+              loadingText="Đang xóa..."
             >
-              {isDeleting ? "Đang xóa..." : "Xác nhận"}
+              Xác nhận
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -449,6 +467,20 @@ export default function AdminDocumentsPage() {
         onOpenChange={setIsUploadOpen}
         onSuccess={() => {
           setIsUploadOpen(false)
+          setRefreshKey((k) => k + 1)
+        }}
+      />
+
+      {/* Document Edit Modal */}
+      <DocumentEditModal
+        open={Boolean(editTarget)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setEditTarget(null)
+        }}
+        document={editTarget}
+        categories={categories}
+        onSuccess={() => {
+          setEditTarget(null)
           setRefreshKey((k) => k + 1)
         }}
       />

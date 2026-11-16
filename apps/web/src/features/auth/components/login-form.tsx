@@ -126,10 +126,11 @@ export function LoginForm() {
 
       <Button
         type="submit"
-        className="mt-2 w-full bg-brand-primary text-white hover:bg-brand-primary-hover font-semibold"
-        disabled={isLoading}
+        className="mt-2 w-full font-semibold"
+        loading={isLoading}
+        loadingText="Đang xử lý..."
       >
-        {isLoading ? "Đang xử lý..." : "Đăng nhập"}
+        Đăng nhập
       </Button>
     </form>
   )

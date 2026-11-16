@@ -2,11 +2,18 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, FileText, Search } from "lucide-react"
+import { ArrowLeft, Loader2, FileText, Search, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { DocumentStatusBadge, documentService, type DocumentDetail, type DocumentChunk } from "@/features/documents"
+import {
+  DocumentStatusBadge,
+  DocumentEditModal,
+  documentService,
+  type DocumentDetail,
+  type DocumentChunk,
+  type CategoryItem,
+} from "@/features/documents"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
@@ -63,10 +70,20 @@ function ChunkItem({ chunk, index }: { chunk: DocumentChunk; index: number }) {
 export default function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const resolvedParams = React.use(params)
   const [doc, setDoc] = React.useState<DocumentDetail | null>(null)
+  const [categories, setCategories] = React.useState<CategoryItem[]>([])
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(true)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
+
+  // Load categories for edit modal
+  React.useEffect(() => {
+    documentService
+      .getCategories()
+      .then((cats) => setCategories(cats || []))
+      .catch(() => setCategories([]))
+  }, [])
 
   React.useEffect(() => {
     documentService
@@ -133,10 +150,17 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   return (
     <div className="w-full space-y-4">
       {/* 1. Page Header Bar */}
-      <div className="border-b border-border pb-2.5">
-        <h1 className="font-heading text-xl font-bold tracking-tight text-heading break-words leading-snug">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-3">
+        <h1 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate" title={doc.title}>
           {doc.title}
         </h1>
+        <Button
+          onClick={() => setIsEditModalOpen(true)}
+          className="h-8 shrink-0 gap-1.5 rounded-lg bg-brand-primary text-xs font-medium text-white shadow-xs hover:bg-brand-primary-hover"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          <span>Chỉnh sửa</span>
+        </Button>
       </div>
 
       {/* 2. Bố cục 2 cột (Left: 4 cols, Right: 8 cols) */}
@@ -270,6 +294,17 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
           </Card>
         </div>
       </div>
+
+      {/* Edit Document Modal */}
+      <DocumentEditModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        document={doc}
+        categories={categories}
+        onSuccess={() => {
+          documentService.getDocument(resolvedParams.id).then((data) => setDoc(data))
+        }}
+      />
     </div>
   )
 }

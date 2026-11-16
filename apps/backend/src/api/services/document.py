@@ -18,6 +18,7 @@ from api.repositories.document_chunk import DocumentChunkRepository
 from api.schemas.document import (
     DocumentDetailResponse,
     DocumentResponse,
+    DocumentUpdate,
 )
 from api.services.ai.managers.embedding_manager import EmbeddingManager
 from api.services.rag.chunker import TextChunker
@@ -269,3 +270,54 @@ class DocumentService:
         # 3. Delete Document record from PostgreSQL (cascades chunks automatically)
         await self.document_repo.delete(doc)
         logger.info("Deleted document id=%d ('%s')", document_id, doc.title)
+
+    async def update_document(
+        self, document_id: int, payload: DocumentUpdate
+    ) -> DocumentResponse:
+        """Update document metadata (title and/or category) and sync to Qdrant."""
+        doc = await self.document_repo.get_by_id(document_id)
+        if not doc:
+            raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
+
+        qdrant_payload: dict[str, Any] = {}
+
+        # 1. Validate and update category if explicitly provided in payload
+        if "category_id" in payload.model_fields_set:
+            if payload.category_id is not None:
+                cat = await self.category_repo.get_by_id(payload.category_id)
+                if not cat:
+                    raise EntityNotFoundException(entity_name="Category", entity_id=payload.category_id)
+                doc.category_id = payload.category_id
+                qdrant_payload["category_id"] = payload.category_id
+            else:
+                doc.category_id = None
+                qdrant_payload["category_id"] = None
+
+        # 2. Update title if explicitly provided in payload
+        if "title" in payload.model_fields_set and payload.title is not None:
+            clean_title = payload.title.strip()
+            if not clean_title:
+                raise BadRequestException(message="Tiêu đề tài liệu không được để trống.")
+            doc.title = clean_title
+            qdrant_payload["title"] = clean_title
+
+        # 3. Save to database
+        await self.document_repo.update(doc)
+
+        # 4. Sync Qdrant vector payload
+        if qdrant_payload:
+            try:
+                await self.vector_store.update_payload_by_document_id(
+                    document_id=doc.id,
+                    payload=qdrant_payload,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to sync Qdrant payload for document id=%d: %s",
+                    document_id,
+                    e,
+                )
+
+        # 5. Fetch updated document with category populated
+        updated_doc = await self.document_repo.get_with_category(document_id)
+        return DocumentResponse.model_validate(updated_doc or doc)
