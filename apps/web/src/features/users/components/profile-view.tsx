@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/sonner"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { userService } from "@/features/users/services/user-service"
@@ -71,28 +72,39 @@ export function ProfileView() {
         </div>
 
         <CardContent className="p-6 grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label className="text-xs text-muted">Họ và tên</Label>
-            <p className="mt-1 text-sm font-semibold text-heading">
-              {user?.full_name || "Chưa cập nhật"}
-            </p>
-          </div>
-          <div>
-            <Label className="text-xs text-muted">Tên đăng nhập</Label>
-            <p className="mt-1 font-mono text-sm font-semibold text-heading">
-              {user?.username || "—"}
-            </p>
-          </div>
-          <div>
-            <Label className="text-xs text-muted">Email</Label>
-            <p className="mt-1 text-sm font-semibold text-heading">{user?.email || "—"}</p>
-          </div>
-          <div>
-            <Label className="text-xs text-muted">Trạng thái tài khoản</Label>
-            <p className="mt-1 text-sm font-semibold text-emerald-600">
-              {user?.is_active !== false ? "Đang hoạt động" : "Bị khóa"}
-            </p>
-          </div>
+          {!user ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="h-5 w-36" />
+              </div>
+            ))
+          ) : (
+            <>
+              <div>
+                <Label className="text-xs text-muted">Họ và tên</Label>
+                <p className="mt-1 text-sm font-semibold text-heading">
+                  {user?.full_name || "Chưa cập nhật"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted">Tên đăng nhập</Label>
+                <p className="mt-1 font-mono text-sm font-semibold text-heading">
+                  {user?.username || "—"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted">Email</Label>
+                <p className="mt-1 text-sm font-semibold text-heading">{user?.email || "—"}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted">Trạng thái tài khoản</Label>
+                <p className="mt-1 text-sm font-semibold text-emerald-600">
+                  {user?.is_active !== false ? "Đang hoạt động" : "Bị khóa"}
+                </p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

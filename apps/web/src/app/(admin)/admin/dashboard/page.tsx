@@ -8,7 +8,6 @@ import {
   Database,
   HardDrive,
   ArrowUpRight,
-  Loader2,
   RefreshCw,
   Plus,
   ArrowRight,
@@ -20,6 +19,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { dashboardService, type DashboardStats, type ServiceStatus } from "@/features/dashboard"
 import {
   documentService,
@@ -52,6 +52,75 @@ function getServiceIcon(name: string) {
     return { icon: Cpu, bg: "bg-amber-50 text-amber-600 border-amber-100", role: "Mô hình ngôn ngữ và vector nhúng" }
   }
   return { icon: Server, bg: "bg-slate-50 text-slate-600 border-slate-100", role: "Dịch vụ hệ thống" }
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* Header Bar Skeleton */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-8 w-24 rounded-lg" />
+      </div>
+
+      {/* Metric Cards Grid Skeleton */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <Card key={idx} className="rounded-2xl border border-border bg-surface p-4 py-3.5 shadow-xs">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-10 w-10 rounded-xl" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+              <div className="space-y-1">
+                <Skeleton className="h-7 w-24" />
+                <Skeleton className="h-3.5 w-32" />
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Two Column Section Skeleton */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="rounded-2xl border border-border bg-surface p-5 shadow-xs space-y-3">
+          <Skeleton className="h-5 w-44" />
+          <div className="space-y-2.5">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="flex items-center justify-between rounded-xl border border-border/80 p-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-36" />
+                  </div>
+                </div>
+                <Skeleton className="h-6 w-16 rounded-md" />
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border border-border bg-surface p-5 shadow-xs space-y-3">
+          <Skeleton className="h-5 w-44" />
+          <div className="space-y-2.5">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="flex items-center justify-between rounded-xl border border-border/80 p-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-6 w-20 rounded-full" />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
 }
 
 export default function AdminDashboardPage() {
@@ -91,12 +160,7 @@ export default function AdminDashboardPage() {
   }, [])
 
   if (isLoading) {
-    return (
-      <div className="flex h-72 flex-col items-center justify-center gap-3 text-xs text-muted">
-        <Loader2 className="h-7 w-7 animate-spin text-brand-primary" />
-        <span className="font-medium text-slate-600">Đang tải bảng điều khiển tổng quan...</span>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   const metrics = [

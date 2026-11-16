@@ -7,7 +7,6 @@ import {
   Pencil,
   Trash2,
   RotateCcw,
-  Loader2,
   AlertCircle,
   FolderOpen,
 } from "lucide-react"
@@ -34,6 +33,7 @@ import {
 } from "@/components/ui/dialog"
 import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empty"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { toast } from "@/components/ui/sonner"
 import { documentService, type CategoryItem } from "@/features/documents"
 
@@ -289,16 +289,7 @@ export default function AdminCategoriesPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-36 text-center text-xs text-muted">
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
-                        <span className="font-medium text-slate-600">
-                          Đang tải danh sách danh mục...
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <TableSkeleton columns={6} rows={5} />
                 ) : filteredCategories.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="py-10 text-center">

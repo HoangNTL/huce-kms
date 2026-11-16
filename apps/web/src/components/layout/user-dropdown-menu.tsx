@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { User, LogOut, ShieldCheck, Sparkles, ChevronDown } from "lucide-react"
+import { User, LogOut, ShieldCheck, Sparkles, ChevronDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -25,10 +25,15 @@ export interface UserDropdownMenuProps {
 export function UserDropdownMenu({ context = "user" }: UserDropdownMenuProps) {
   const router = useRouter()
   const { user, logout } = useAuthStore()
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
 
   const handleLogout = async () => {
-    await logout()
-    router.push(ROUTES.AUTH.LOGIN)
+    setIsLoggingOut(true)
+    try {
+      await logout()
+    } finally {
+      router.push(ROUTES.AUTH.LOGIN)
+    }
   }
 
   const displayName = user?.full_name || user?.username || "Người dùng"
@@ -124,10 +129,16 @@ export function UserDropdownMenu({ context = "user" }: UserDropdownMenuProps) {
         <DropdownMenuItem
           variant="destructive"
           onClick={handleLogout}
+          disabled={isLoggingOut}
+          closeOnClick={false}
           className="flex cursor-pointer items-center gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive [&>svg]:text-destructive! [&>span]:text-destructive!"
         >
-          <LogOut className="h-4 w-4" />
-          <span>Đăng xuất</span>
+          {isLoggingOut ? (
+            <Loader2 className="h-4 w-4 animate-spin text-destructive" />
+          ) : (
+            <LogOut className="h-4 w-4" />
+          )}
+          <span>{isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

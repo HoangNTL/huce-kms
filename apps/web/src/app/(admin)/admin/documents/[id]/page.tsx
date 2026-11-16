@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, Loader2, FileText, Search, Pencil, AlertCircle, ExternalLink } from "lucide-react"
+import { ArrowLeft, FileText, Search, Pencil, AlertCircle, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   DocumentStatusBadge,
   DocumentEditModal,
@@ -67,6 +68,67 @@ function ChunkItem({ chunk, index }: { chunk: DocumentChunk; index: number }) {
   )
 }
 
+function DocumentDetailSkeleton() {
+  return (
+    <div className="space-y-4">
+      {/* Top Header Skeleton */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-24 rounded-lg" />
+          <Skeleton className="h-6 w-48" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-24 rounded-lg" />
+          <Skeleton className="h-8 w-24 rounded-lg" />
+        </div>
+      </div>
+
+      {/* 2-Column Grid */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start">
+        {/* Left Column (Metadata) */}
+        <div className="space-y-4 lg:col-span-4">
+          <Card className="rounded-2xl border border-border bg-surface p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Column (Chunks) */}
+        <div className="space-y-4 lg:col-span-8">
+          <Card className="rounded-2xl border border-border bg-surface p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-8 w-44 rounded-lg" />
+            </div>
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-border/80 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="h-3.5 w-4/5" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function DocumentDetailPage({ params }: DocumentDetailPageProps) {
   const resolvedParams = React.use(params)
   const [doc, setDoc] = React.useState<DocumentDetail | null>(null)
@@ -102,12 +164,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   }, [resolvedParams.id])
 
   if (isLoading) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 text-xs text-muted">
-        <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
-        <span>Đang tải thông tin tài liệu #{resolvedParams.id}...</span>
-      </div>
-    )
+    return <DocumentDetailSkeleton />
   }
 
   if (!doc) {

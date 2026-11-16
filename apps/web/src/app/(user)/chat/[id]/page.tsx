@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Sparkles, BookOpen, Loader2 } from "lucide-react"
+import { Sparkles, BookOpen } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
 import {
   ChatComposer,
   CitationBadge,
@@ -89,10 +90,11 @@ export default function ChatDetailPage({ params }: ChatDetailPageProps) {
               >
                 {/* Content or Loader */}
                 {msg.role === "assistant" && !msg.content ? (
-                  <div className="flex items-center gap-2 text-xs text-muted">
-                    <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
-                    <span>Đang đối chứng tài liệu và suy luận câu trả lời...</span>
-                  </div>
+                  <LoadingSpinner
+                    size="sm"
+                    label="Đang đối chứng tài liệu và suy luận câu trả lời..."
+                    className="justify-start text-xs text-slate-500"
+                  />
                 ) : (
                   <div className="text-xs leading-relaxed whitespace-pre-wrap sm:text-sm">
                     {msg.content}

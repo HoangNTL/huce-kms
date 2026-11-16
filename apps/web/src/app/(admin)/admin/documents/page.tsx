@@ -7,7 +7,6 @@ import {
   Search,
   Trash2,
   RotateCcw,
-  Loader2,
   FolderOpen,
   AlertCircle,
   Pencil,
@@ -48,6 +47,7 @@ import {
   type CategoryItem,
 } from "@/features/documents"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
 
@@ -298,16 +298,7 @@ export default function AdminDocumentsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-36 text-center text-xs text-muted">
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
-                        <span className="font-medium text-slate-600">
-                          Đang tải danh sách tài liệu từ cơ sở dữ liệu...
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <TableSkeleton columns={7} rows={6} />
                 ) : documents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="py-10 text-center">

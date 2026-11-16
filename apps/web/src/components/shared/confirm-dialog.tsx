@@ -19,7 +19,7 @@ interface ConfirmDialogProps {
   confirmText?: string
   cancelText?: string
   variant?: "default" | "destructive"
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   isLoading?: boolean
 }
 
@@ -34,6 +34,22 @@ export function ConfirmDialog({
   onConfirm,
   isLoading = false,
 }: ConfirmDialogProps) {
+  const [internalLoading, setInternalLoading] = React.useState(false)
+  const isPending = isLoading || internalLoading
+
+  const handleConfirm = async () => {
+    try {
+      const result = onConfirm()
+      if (result instanceof Promise) {
+        setInternalLoading(true)
+        await result
+      }
+      onOpenChange(false)
+    } finally {
+      setInternalLoading(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -42,16 +58,13 @@ export function ConfirmDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-4 gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             {cancelText}
           </Button>
           <Button
             variant={variant}
-            onClick={() => {
-              onConfirm()
-              onOpenChange(false)
-            }}
-            loading={isLoading}
+            onClick={handleConfirm}
+            loading={isPending}
           >
             {confirmText}
           </Button>

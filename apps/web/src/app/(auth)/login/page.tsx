@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card"
 import { LoginForm } from "@/features/auth"
 import { ROUTES } from "@/constants/routes"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
 
 export const metadata: Metadata = {
   title: "Đăng nhập | HUCE KMS",
@@ -30,7 +31,7 @@ export default function LoginPage() {
         <React.Suspense
           fallback={
             <div className="flex h-40 items-center justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+              <LoadingSpinner size="md" label="Đang tải giao diện..." />
             </div>
           }
         >

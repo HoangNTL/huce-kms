@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { ROUTES } from "@/constants/routes"
 import { USER_ROLES, type UserRole } from "@/types/user"
+import { LoadingSpinner } from "@/components/shared/loading-spinner"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -39,12 +40,12 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   // While checking silent session via HttpOnly cookie
   if (!isInitialized) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-3 border-brand-primary border-t-transparent" />
-          <p className="text-xs font-medium text-muted">Đang kiểm tra phiên đăng nhập...</p>
-        </div>
-      </div>
+      <LoadingSpinner
+        fullScreen
+        orientation="vertical"
+        size="lg"
+        label="Đang kiểm tra phiên đăng nhập..."
+      />
     )
   }
 
