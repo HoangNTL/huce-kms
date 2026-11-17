@@ -44,8 +44,8 @@ import {
   DocumentEditModal,
   documentService,
   type DocumentMetadata,
-  type CategoryItem,
 } from "@/features/documents"
+import { categoryService, type CategoryItem } from "@/features/categories"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { toast } from "@/components/ui/sonner"
@@ -98,7 +98,7 @@ export default function AdminDocumentsPage() {
   // Load categories once
   React.useEffect(() => {
     let ignore = false
-    documentService
+    categoryService
       .getCategories()
       .then((cats) => {
         if (!ignore) setCategories(cats || [])

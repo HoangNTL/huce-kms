@@ -13,8 +13,8 @@ import {
   documentService,
   type DocumentDetail,
   type DocumentChunk,
-  type CategoryItem,
 } from "@/features/documents"
+import { categoryService, type CategoryItem } from "@/features/categories"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
@@ -141,7 +141,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
 
   // Load categories for edit modal
   React.useEffect(() => {
-    documentService
+    categoryService
       .getCategories()
       .then((cats) => setCategories(cats || []))
       .catch(() => setCategories([]))

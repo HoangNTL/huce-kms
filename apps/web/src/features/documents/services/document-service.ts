@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api-client"
-import type { DocumentMetadata, DocumentDetail, CategoryItem } from "../types"
+import type { DocumentMetadata, DocumentDetail } from "../types"
 import type { PaginatedResponse, PaginationParams } from "@/types/api"
 
 export const documentService = {
@@ -120,33 +120,6 @@ export const documentService = {
     data: { title?: string; category_id?: number | null }
   ): Promise<DocumentMetadata> {
     return apiClient.patch<DocumentMetadata>(`/documents/${id}`, data)
-  },
-
-  async getCategories(): Promise<CategoryItem[]> {
-    return apiClient.get<CategoryItem[]>("/categories/")
-  },
-
-  async getCategory(id: number | string): Promise<CategoryItem> {
-    return apiClient.get<CategoryItem>(`/categories/${id}`)
-  },
-
-  async createCategory(data: {
-    name: string
-    description?: string
-    slug?: string
-  }): Promise<CategoryItem> {
-    return apiClient.post<CategoryItem>("/categories/", data)
-  },
-
-  async updateCategory(
-    id: number | string,
-    data: { name?: string; description?: string; slug?: string }
-  ): Promise<CategoryItem> {
-    return apiClient.patch<CategoryItem>(`/categories/${id}`, data)
-  },
-
-  async deleteCategory(id: number | string): Promise<void> {
-    return apiClient.delete<void>(`/categories/${id}`)
   },
 
   async getDocumentDownloadUrl(id: string | number): Promise<{ download_url: string }> {

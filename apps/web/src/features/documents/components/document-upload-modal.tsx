@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select"
 import { toast } from "@/components/ui/sonner"
 import { documentService } from "../services/document-service"
-import type { CategoryItem } from "../types"
+import { categoryService, type CategoryItem } from "@/features/categories"
 
 interface DocumentUploadModalProps {
   open: boolean
@@ -65,7 +65,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
 
   React.useEffect(() => {
     if (open) {
-      documentService
+      categoryService
         .getCategories()
         .then((cats) => {
           setCategories(cats || [])

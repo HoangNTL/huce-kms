@@ -1,3 +1,7 @@
+import type { CategoryItem } from "@/features/categories"
+
+export type { CategoryItem }
+
 export type DocumentStatus =
   | "pending"
   | "processing"
@@ -7,16 +11,6 @@ export type DocumentStatus =
   | "PROCESSING"
   | "INDEXED"
   | "FAILED"
-
-export interface CategoryItem {
-  id: number | string
-  name: string
-  slug?: string
-  code?: string
-  description?: string | null
-  created_at?: string
-  updated_at?: string
-}
 
 export interface DocumentMetadata {
   id: string | number

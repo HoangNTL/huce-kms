@@ -35,7 +35,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empt
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { toast } from "@/components/ui/sonner"
-import { documentService, type CategoryItem } from "@/features/documents"
+import { categoryService, type CategoryItem } from "@/features/categories"
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = React.useState<CategoryItem[]>([])
@@ -66,7 +66,7 @@ export default function AdminCategoriesPage() {
   // Fetch Categories
   React.useEffect(() => {
     let ignore = false
-    documentService
+    categoryService
       .getCategories()
       .then((data) => {
         if (!ignore) {
@@ -108,7 +108,7 @@ export default function AdminCategoriesPage() {
 
     try {
       setIsCreating(true)
-      await documentService.createCategory({
+      await categoryService.createCategory({
         name: trimmedName,
         slug: createSlug.trim() || undefined,
         description: createDescription.trim() || undefined,
@@ -145,7 +145,7 @@ export default function AdminCategoriesPage() {
 
     try {
       setIsUpdating(true)
-      await documentService.updateCategory(editTarget.id, {
+      await categoryService.updateCategory(editTarget.id, {
         name: trimmedName,
         slug: editSlug.trim() || undefined,
         description: editDescription.trim() ? editDescription.trim() : "",
@@ -170,7 +170,7 @@ export default function AdminCategoriesPage() {
     if (!deleteTarget) return
     try {
       setIsDeleting(true)
-      await documentService.deleteCategory(deleteTarget.id)
+      await categoryService.deleteCategory(deleteTarget.id)
       toast.success("Xóa danh mục thành công!", {
         description: `Đã xóa danh mục "${deleteTarget.name}".`,
       })

@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select"
 import { toast } from "@/components/ui/sonner"
 import { documentService } from "../services/document-service"
-import type { CategoryItem, DocumentMetadata } from "../types"
+import type { DocumentMetadata } from "../types"
+import type { CategoryItem } from "@/features/categories"
 
 interface DocumentEditModalProps {
   open: boolean
