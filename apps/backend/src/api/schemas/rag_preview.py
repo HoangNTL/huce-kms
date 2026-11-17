@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
@@ -67,7 +68,7 @@ class RetrievalPreviewItem(BaseModel):
 
     rank: int = Field(..., description="Rank in retrieval order (1-based)")
     score: float = Field(..., description="Cosine similarity score (0.0 - 1.0)")
-    document_id: int = Field(..., description="Parent document ID")
+    document_id: UUID = Field(..., description="Parent document ID")
     title: str = Field(..., description="Document title")
     page_number: int = Field(..., description="Page number")
     chunk_index: int = Field(..., description="Chunk index")

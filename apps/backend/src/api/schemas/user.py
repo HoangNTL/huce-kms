@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -51,11 +52,12 @@ class UserRoleUpdate(BaseModel):
 
 
 class UserResponse(UserBase):
-    id: int
+    id: UUID
     role: UserRole
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = Field(default=None, description="Creation timestamp")
+    updated_at: datetime | None = Field(default=None, description="Last update timestamp")
+    deleted_at: datetime | None = Field(default=None, description="Soft-delete timestamp if deleted")
 
     model_config = ConfigDict(from_attributes=True)
 

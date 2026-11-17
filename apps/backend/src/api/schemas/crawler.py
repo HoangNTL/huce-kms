@@ -1,3 +1,4 @@
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
@@ -5,7 +6,7 @@ class CrawlDirectRequest(BaseModel):
     url: str = Field(..., description="Target article or document URL to crawl")
     auto_ingest: bool = Field(default=False, description="Whether to automatically ingest to RAG after crawl")
     auto_publish: bool = Field(default=False, description="If auto-ingest is True, whether to index vectors immediately")
-    category_id: int | None = Field(default=None, description="Optional category ID for ingested documents")
+    category_id: UUID | None = Field(default=None, description="Optional category ID for ingested documents")
 
 
 class DiscoverRequest(BaseModel):
@@ -22,5 +23,5 @@ class ApproveQueueRequest(BaseModel):
 class IngestSessionRequest(BaseModel):
     session_id: str | None = Field(default=None, description="Session ID to ingest")
     page_hash: str | None = Field(default=None, description="Specific page hash to ingest")
-    category_id: int | None = Field(default=None, description="Category ID to assign")
+    category_id: UUID | None = Field(default=None, description="Category ID to assign")
     auto_publish: bool = Field(default=False, description="Index vectors into Qdrant immediately")

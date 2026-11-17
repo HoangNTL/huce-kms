@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # Database Configuration (Docker PostgreSQL by default)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/huce_kms"
+    AUTO_SEED: bool = True  # Automatically seed default admin and categories on startup in development
 
     # Qdrant Vector DB Configuration
     QDRANT_HOST: str = "localhost"

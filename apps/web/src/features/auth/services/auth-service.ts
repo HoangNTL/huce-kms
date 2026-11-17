@@ -18,7 +18,7 @@ export const authService = {
   },
 
   async getMe(): Promise<UserProfile> {
-    return apiClient.get<UserProfile>("/users/me")
+    return apiClient.get<UserProfile>("/auth/me")
   },
 
   async refreshToken(): Promise<AuthTokens> {

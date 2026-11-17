@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from uuid import UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from api.core.database import Base, TimestampMixin
+from api.core.database import Base, TimestampMixin, uuid7
 
 if TYPE_CHECKING:
     from api.models.user import User
@@ -14,9 +15,15 @@ class RefreshToken(Base, TimestampMixin):
 
     __tablename__ = "refresh_tokens"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
-    token: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    user_id: Mapped[int] = mapped_column(
+    id: Mapped[UUID] = mapped_column(
+        Uuid,
+        primary_key=True,
+        default=uuid7,
+        server_default=text("gen_random_uuid()"),
+        index=True,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

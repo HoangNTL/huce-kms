@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timezone
+from uuid import UUID
 from pydantic import ValidationError
 
 from api.schemas.document import (
@@ -11,8 +12,10 @@ from api.schemas.document import (
 class TestDocumentSchemas(unittest.TestCase):
     def setUp(self):
         self.now = datetime.now(timezone.utc)
+        self.doc_id = UUID("018e3a2b-7c10-7b56-8a5e-851944621ef0")
+        self.user_id = UUID("018e3a2b-7c10-7b56-8a5e-851944621ef1")
         self.base_data = {
-            "id": 1,
+            "id": self.doc_id,
             "title": "Tài liệu kiểm thử",
             "category_id": None,
             "file_name": "test.pdf",
@@ -20,7 +23,7 @@ class TestDocumentSchemas(unittest.TestCase):
             "file_size": 1024,
             "file_type": "pdf",
             "file_hash": "hash123456789",
-            "uploader_id": 1,
+            "created_by_id": self.user_id,
             "total_pages": 1,
             "chunk_count": 0,
             "error_message": None,

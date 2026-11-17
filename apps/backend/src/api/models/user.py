@@ -1,19 +1,26 @@
 from typing import TYPE_CHECKING
-from sqlalchemy import Boolean, String
+from uuid import UUID
+from sqlalchemy import Boolean, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from api.core.database import Base, TimestampMixin
+from api.core.database import Base, SoftDeleteMixin, TimestampMixin, uuid7
 
 if TYPE_CHECKING:
     from api.models.refresh_token import RefreshToken
 
 
-class User(Base, TimestampMixin):
+class User(Base, TimestampMixin, SoftDeleteMixin):
     """User account entity. System supports strictly two roles: 'user' and 'admin'."""
 
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
+    id: Mapped[UUID] = mapped_column(
+        Uuid,
+        primary_key=True,
+        default=uuid7,
+        server_default=text("gen_random_uuid()"),
+        index=True,
+    )
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)

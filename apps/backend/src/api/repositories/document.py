@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,25 +14,34 @@ class DocumentRepository(BaseRepository[Document]):
     def __init__(self, session: AsyncSession):
         super().__init__(Document, session)
 
+    async def get_by_id(self, id: UUID, include_deleted: bool = False) -> Document | None:
+        """Fetch document by ID, excluding soft-deleted documents unless requested."""
+        doc = await super().get_by_id(id)
+        if doc and not include_deleted and doc.deleted_at is not None:
+            return None
+        return doc
+
     async def get_by_file_hash(self, file_hash: str) -> Document | None:
         stmt = (
             select(Document)
             .options(selectinload(Document.category))
-            .where(Document.file_hash == file_hash)
+            .where(Document.file_hash == file_hash, Document.deleted_at.is_(None))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_with_category(self, document_id: int) -> Document | None:
+    async def get_with_category(self, document_id: UUID, include_deleted: bool = False) -> Document | None:
         stmt = (
             select(Document)
             .options(selectinload(Document.category))
             .where(Document.id == document_id)
         )
+        if not include_deleted:
+            stmt = stmt.where(Document.deleted_at.is_(None))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_with_chunks(self, document_id: int) -> Document | None:
+    async def get_with_chunks(self, document_id: UUID, include_deleted: bool = False) -> Document | None:
         stmt = (
             select(Document)
             .options(
@@ -40,6 +50,8 @@ class DocumentRepository(BaseRepository[Document]):
             )
             .where(Document.id == document_id)
         )
+        if not include_deleted:
+            stmt = stmt.where(Document.deleted_at.is_(None))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -47,9 +59,10 @@ class DocumentRepository(BaseRepository[Document]):
         self,
         skip: int = 0,
         limit: int = 10,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         status: str | None = None,
         query: str | None = None,
+        include_deleted: bool = False,
     ) -> tuple[Sequence[Document], int]:
         """Search documents with optional filters and pagination."""
         count_stmt = select(func.count(Document.id))
@@ -62,6 +75,8 @@ class DocumentRepository(BaseRepository[Document]):
         )
 
         filters = []
+        if not include_deleted:
+            filters.append(Document.deleted_at.is_(None))
         if category_id is not None:
             filters.append(Document.category_id == category_id)
         if status is not None:

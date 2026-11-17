@@ -124,7 +124,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
       const doc = await documentService.uploadDocument(
         file,
         title || undefined,
-        selectedCategoryId ? Number(selectedCategoryId) : undefined
+        selectedCategoryId || undefined
       )
 
       toast.success("Tải lên tài liệu thành công!", {

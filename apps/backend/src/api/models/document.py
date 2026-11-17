@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text
+from uuid import UUID
+from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from api.core.database import Base, TimestampMixin
+from api.core.database import Base, SoftDeleteMixin, TimestampMixin, uuid7
 
 if TYPE_CHECKING:
     from api.models.category import Category
@@ -10,12 +11,18 @@ if TYPE_CHECKING:
     from api.models.user import User
 
 
-class Document(Base, TimestampMixin):
+class Document(Base, TimestampMixin, SoftDeleteMixin):
     """Document entity tracking uploaded source files (PDF, DOCX) and their ingestion status."""
 
     __tablename__ = "documents"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
+    id: Mapped[UUID] = mapped_column(
+        Uuid,
+        primary_key=True,
+        default=uuid7,
+        server_default=text("gen_random_uuid()"),
+        index=True,
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -26,12 +33,12 @@ class Document(Base, TimestampMixin):
     # Ingestion Status: "uploaded" | "pending" | "processing" | "indexed" | "failed"
     status: Mapped[str] = mapped_column(String(20), default="uploaded", nullable=False, index=True)
 
-    category_id: Mapped[int | None] = mapped_column(
+    category_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("categories.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
-    uploader_id: Mapped[int | None] = mapped_column(
+    created_by_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
@@ -43,7 +50,7 @@ class Document(Base, TimestampMixin):
 
     # Relationships
     category: Mapped["Category | None"] = relationship(back_populates="documents")
-    uploader: Mapped["User | None"] = relationship()
+    created_by: Mapped["User | None"] = relationship()
     chunks: Mapped[list["DocumentChunk"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",

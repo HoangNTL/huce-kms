@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import logging
+from uuid import UUID
 
 from api.core.exceptions import BadRequestException, ConflictException, UnauthorizedException
 from api.core.security import (
@@ -7,6 +8,7 @@ from api.core.security import (
     generate_refresh_token,
     get_refresh_token_expiry,
     hash_password,
+    hash_token,
     verify_password,
 )
 from api.models.refresh_token import RefreshToken
@@ -31,13 +33,13 @@ class AuthService:
 
     async def register(self, payload: UserCreate) -> UserResponse:
         """Register a new user account with default 'user' role."""
-        # 1. Verify username uniqueness
-        existing_user = await self.user_repo.get_by_username(payload.username)
+        # 1. Verify username uniqueness (including soft-deleted accounts)
+        existing_user = await self.user_repo.get_by_username(payload.username, include_deleted=True)
         if existing_user:
             raise ConflictException(message=f"Tên đăng nhập '{payload.username}' đã được sử dụng.")
 
-        # 2. Verify email uniqueness
-        existing_email = await self.user_repo.get_by_email(payload.email)
+        # 2. Verify email uniqueness (including soft-deleted accounts)
+        existing_email = await self.user_repo.get_by_email(payload.email, include_deleted=True)
         if existing_email:
             raise ConflictException(message=f"Địa chỉ email '{payload.email}' đã được đăng ký.")
 
@@ -76,14 +78,14 @@ class AuthService:
         # 3. Create short-lived Access Token
         access_token = create_access_token({
             "sub": user.username,
-            "id": user.id,
+            "id": str(user.id),
             "role": user.role,
         })
 
-        # 4. Generate and persist long-lived Refresh Token in database
+        # 4. Generate and persist long-lived Refresh Token in database (hashed with SHA-256)
         raw_refresh_token = generate_refresh_token()
         refresh_token_record = RefreshToken(
-            token=raw_refresh_token,
+            token_hash=hash_token(raw_refresh_token),
             user_id=user.id,
             expires_at=get_refresh_token_expiry(),
             is_revoked=False,
@@ -108,14 +110,15 @@ class AuthService:
         if not raw_refresh_token:
             raise UnauthorizedException(message="Refresh token is missing.")
 
-        token_record = await self.refresh_token_repo.get_by_token(raw_refresh_token)
+        token_hash = hash_token(raw_refresh_token)
+        token_record = await self.refresh_token_repo.get_by_token_hash(token_hash)
         if not token_record:
             raise UnauthorizedException(message="Invalid refresh token.")
 
         # Token Reuse Detection (Security breach: someone used an already-revoked token!)
         if token_record.is_revoked:
             logger.warning(
-                "Revoked refresh token reused for user_id=%d. Invalidating all sessions.",
+                "Revoked refresh token reused for user_id=%s. Invalidating all sessions.",
                 token_record.user_id,
             )
             await self.refresh_token_repo.revoke_all_for_user(token_record.user_id)
@@ -145,14 +148,14 @@ class AuthService:
         # Generate new Access Token
         new_access_token = create_access_token({
             "sub": user.username,
-            "id": user.id,
+            "id": str(user.id),
             "role": user.role,
         })
 
-        # Generate and save new Refresh Token
+        # Generate and save new Refresh Token (hashed with SHA-256)
         new_raw_refresh_token = generate_refresh_token()
         new_record = RefreshToken(
-            token=new_raw_refresh_token,
+            token_hash=hash_token(new_raw_refresh_token),
             user_id=user.id,
             expires_at=get_refresh_token_expiry(),
             is_revoked=False,
@@ -168,13 +171,14 @@ class AuthService:
         if not raw_refresh_token:
             return
 
-        token_record = await self.refresh_token_repo.get_by_token(raw_refresh_token)
+        token_hash = hash_token(raw_refresh_token)
+        token_record = await self.refresh_token_repo.get_by_token_hash(token_hash)
         if token_record and not token_record.is_revoked:
             await self.refresh_token_repo.revoke(token_record)
 
     async def change_password(
         self,
-        user_id: int,
+        user_id: UUID,
         current_password: str,
         new_password: str,
     ) -> None:

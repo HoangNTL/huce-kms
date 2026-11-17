@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator, Callable
 from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -62,7 +63,7 @@ security = HTTPBearer(
 class CurrentUser(BaseModel):
     """User representation authenticated from JWT token and database."""
 
-    id: int
+    id: UUID
     username: str
     email: str
     full_name: str | None = None
@@ -72,22 +73,10 @@ class CurrentUser(BaseModel):
     updated_at: datetime | None = None
 
 
-# Development mock tokens for fast local testing (strictly 'admin' and 'user' roles)
-MOCK_USERS_BY_TOKEN = {
-    "admin-token": CurrentUser(
-        id=1,
-        username="admin",
-        email="admin@huce.edu.vn",
-        full_name="HUCE KMS Administrator",
-        role="admin",
-    ),
-    "user-token": CurrentUser(
-        id=2,
-        username="user",
-        email="user@huce.edu.vn",
-        full_name="Standard User",
-        role="user",
-    ),
+# Development mock token usernames (only recognized when settings.DEBUG=True)
+DEV_MOCK_USERNAMES = {
+    "admin-token": "admin",
+    "user-token": "user",
 }
 
 
@@ -102,10 +91,30 @@ async def get_current_user(
         )
 
     token = credentials.credentials
+    user_repo = UserRepository(db)
 
-    # 1. Fallback to development mock tokens only in DEBUG mode
-    if settings.DEBUG and token in MOCK_USERS_BY_TOKEN:
-        return MOCK_USERS_BY_TOKEN[token]
+    # 1. Fallback to development mock tokens only in DEBUG mode by fetching real DB user
+    if settings.DEBUG and token in DEV_MOCK_USERNAMES:
+        target_username = DEV_MOCK_USERNAMES[token]
+        user = await user_repo.get_by_username(target_username)
+        if not user:
+            raise UnauthorizedException(
+                message=f"Development mock user '{target_username}' not found in database. Please run seeder: 'uv run python scripts/seed.py'",
+            )
+        if not user.is_active or user.deleted_at is not None:
+            raise ForbiddenException(
+                message=f"Development mock user '{target_username}' is deactivated or deleted.",
+            )
+        return CurrentUser(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
 
     # 2. Decode and verify standard JWT access token
     payload = decode_access_token(token)
@@ -124,7 +133,6 @@ async def get_current_user(
     username: str = payload["sub"]
 
     # 4. Query active user from database using UserRepository
-    user_repo = UserRepository(db)
     user = await user_repo.get_by_username(username)
     if not user:
         raise UnauthorizedException(

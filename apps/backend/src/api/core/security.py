@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
 import secrets
 from typing import Any
 import jwt
@@ -54,3 +55,9 @@ def generate_refresh_token() -> str:
 def get_refresh_token_expiry() -> datetime:
     """Calculate expiration timestamp for a new refresh token."""
     return datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+
+def hash_token(token: str) -> str:
+    """Hash raw refresh token using SHA-256 for secure database storage."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+

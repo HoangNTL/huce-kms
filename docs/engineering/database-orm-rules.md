@@ -102,23 +102,27 @@ class RefreshToken(Base):  # Missing TimestampMixin
 **Title:** Primary Key and Indexing Conventions  
 **Priority:** MUST  
 **Rule:** 
-- The standard primary key **MUST** be an auto-incrementing integer:
-  `id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)`.
-- Fields frequently used in query `WHERE` clauses (e.g., `username`, `email`, `token`, `user_id`, `expires_at`, `is_revoked`) **MUST** be indexed using `index=True` or an explicit `Index(...)` declaration.
+- The standard primary key **MUST** be a time-ordered 128-bit UUIDv7 (PostgreSQL native `uuid` type):
+  `id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7, index=True)`.
+- Fields frequently used in query `WHERE` clauses (e.g., `username`, `email`, `token_hash`, `user_id`, `expires_at`, `is_revoked`) **MUST** be indexed using `index=True` or an explicit `Index(...)` declaration.
 - Fields requiring uniqueness across the database **MUST** declare `unique=True`.  
-**Reason:** Optimizes query performance and prevents costly Full Table Scans as data scales.  
+**Reason:** UUIDv7 provides non-enumerable, globally unique IDs while preserving B-Tree index locality and sequential insertion performance without index fragmentation.  
 **Correct Example:**
 ```python
-id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
-username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+from uuid import UUID
+from sqlalchemy import String, Uuid, ForeignKey
+from api.core.database import Base, TimestampMixin, uuid7
+
+class User(Base, TimestampMixin):
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7, index=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
 ```
 **Incorrect Example:**
 ```python
-username: Mapped[str] = mapped_column(String(50))  # Missing index and unique constraint despite being used for login
+id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)  # Deprecated auto-increment int
 ```
-**Exceptions:** When an explicit distributed architecture requirement mandates UUIDv4/UUIDv7. Currently, the platform standardizes on Integer IDs across all tables.  
-**Source:** `apps/backend/src/api/models/user.py:16-18`, `apps/backend/src/api/models/refresh_token.py:17-25`.
+**Exceptions:** None. All primary keys and referencing foreign keys standardize on UUIDv7.  
+**Source:** `apps/backend/src/api/models/user.py`, `apps/backend/src/api/models/refresh_token.py`.
 
 ---
 

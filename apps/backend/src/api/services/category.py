@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from collections.abc import Sequence
+from uuid import UUID
 
 from api.core.exceptions import ConflictException, EntityNotFoundException
 from api.models.category import Category
@@ -26,7 +27,7 @@ class CategoryService:
         categories = await self.category_repo.list_all()
         return [CategoryResponse.model_validate(c) for c in categories]
 
-    async def get_category_by_id(self, category_id: int) -> CategoryResponse:
+    async def get_category_by_id(self, category_id: UUID) -> CategoryResponse:
         category = await self.category_repo.get_by_id(category_id)
         if not category:
             raise EntityNotFoundException(entity_name="Category", entity_id=category_id)
@@ -62,7 +63,7 @@ class CategoryService:
         created = await self.category_repo.create(category)
         return CategoryResponse.model_validate(created)
 
-    async def update_category(self, category_id: int, payload: CategoryUpdate) -> CategoryResponse:
+    async def update_category(self, category_id: UUID, payload: CategoryUpdate) -> CategoryResponse:
         category = await self.category_repo.get_by_id(category_id)
         if not category:
             raise EntityNotFoundException(entity_name="Category", entity_id=category_id)
@@ -87,7 +88,7 @@ class CategoryService:
         updated = await self.category_repo.update(category)
         return CategoryResponse.model_validate(updated)
 
-    async def delete_category(self, category_id: int) -> None:
+    async def delete_category(self, category_id: UUID) -> None:
         category = await self.category_repo.get_by_id(category_id)
         if not category:
             raise EntityNotFoundException(entity_name="Category", entity_id=category_id)

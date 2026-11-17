@@ -1,5 +1,6 @@
 from pathlib import Path as FilePath
 from typing import Annotated
+from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Response, UploadFile, status
 from fastapi.responses import RedirectResponse
 
@@ -55,7 +56,7 @@ DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
 async def upload_document(
     file: UploadFile = File(..., description="Document file (.pdf, .txt, .md)"),
     title: str | None = Form(None, description="Document display title (defaults to filename)"),
-    category_id: int | None = Form(None, description="Category identifier"),
+    category_id: UUID | None = Form(None, description="Category identifier"),
     chunk_strategy: str = Form("legal_structural", description="Chunking strategy: 'legal_structural' or 'recursive'"),
     current_user: CurrentUserDep = None,
     service: DocumentServiceDep = None,
@@ -69,7 +70,7 @@ async def upload_document(
         file_name=file_name,
         title=doc_title,
         category_id=category_id,
-        uploader_id=current_user.id if current_user else None,
+        created_by_id=current_user.id if current_user else None,
         chunk_strategy=chunk_strategy,
     )
 
@@ -94,7 +95,7 @@ async def upload_document(
 async def list_documents(
     pagination: PaginationDep,
     service: DocumentServiceDep,
-    category_id: int | None = Query(None, description="Filter by category ID"),
+    category_id: UUID | None = Query(None, description="Filter by category ID"),
     status_filter: str | None = Query(None, alias="status", description="Filter by status (uploaded, pending, processing, indexed, failed)"),
     q: str | None = Query(None, description="Search keyword in title or filename"),
 ):
@@ -154,7 +155,7 @@ async def get_raw_document_file(
     summary="Get document details including text chunks",
 )
 async def get_document(
-    document_id: Annotated[int, Path(ge=1, description="Document unique identifier")],
+    document_id: Annotated[UUID, Path(description="Document unique identifier")],
     service: DocumentServiceDep,
 ):
     document = await service.get_document_detail(document_id)
@@ -171,7 +172,7 @@ async def get_document(
     summary="Update document title or category metadata (Admin only)",
 )
 async def update_document(
-    document_id: Annotated[int, Path(ge=1, description="Document unique identifier")],
+    document_id: Annotated[UUID, Path(description="Document unique identifier")],
     payload: DocumentUpdate,
     admin_user: AdminUserDep,
     service: DocumentServiceDep,
@@ -190,7 +191,7 @@ async def update_document(
     summary="Generate a presigned URL to download or view the original file",
 )
 async def get_document_download_url(
-    document_id: Annotated[int, Path(ge=1, description="Document unique identifier")],
+    document_id: Annotated[UUID, Path(description="Document unique identifier")],
     service: DocumentServiceDep,
     expiry_seconds: int = Query(3600, ge=60, le=86400, description="URL validity in seconds"),
 ):
@@ -206,7 +207,7 @@ async def get_document_download_url(
     summary="Directly download original document file",
 )
 async def download_document(
-    document_id: Annotated[int, Path(ge=1, description="Document unique identifier")],
+    document_id: Annotated[UUID, Path(description="Document unique identifier")],
     service: DocumentServiceDep,
 ):
     url_info = await service.get_document_download_url(document_id)
@@ -231,7 +232,7 @@ async def download_document(
     summary="Delete a document, its chunks, vector embeddings, and physical file (Admin only)",
 )
 async def delete_document(
-    document_id: Annotated[int, Path(ge=1, description="Document unique identifier")],
+    document_id: Annotated[UUID, Path(description="Document unique identifier")],
     admin_user: AdminUserDep,
     service: DocumentServiceDep,
 ):

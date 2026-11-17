@@ -32,8 +32,8 @@ interface DocumentEditModalProps {
     | {
         id: string | number
         title: string
-        category_id?: number | null
-        category?: { id?: number; name?: string } | string
+        category_id?: string | null
+        category?: { id?: string | number; name?: string } | string
       }
     | null
   categories?: CategoryItem[]
@@ -89,7 +89,7 @@ function DocumentEditFormContent({
       setIsLoading(true)
       await documentService.updateDocument(document.id, {
         title: cleanTitle,
-        category_id: selectedCategoryId ? Number(selectedCategoryId) : null,
+        category_id: selectedCategoryId || null,
       })
       toast.success("Cập nhật tài liệu thành công!", {
         description: `Tài liệu "${cleanTitle}" đã được cập nhật thông tin.`,

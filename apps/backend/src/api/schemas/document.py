@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from uuid import UUID
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from api.schemas.category import CategoryResponse
 
@@ -8,8 +9,8 @@ DocumentStatus = Literal["uploaded", "pending", "processing", "indexed", "failed
 
 
 class DocumentChunkResponse(BaseModel):
-    id: str = Field(..., description="UUID point ID matching Qdrant Point ID")
-    document_id: int
+    id: UUID = Field(..., description="UUID point ID matching Qdrant Point ID")
+    document_id: UUID
     chunk_index: int
     content: str
     page_number: int
@@ -21,7 +22,7 @@ class DocumentChunkResponse(BaseModel):
 
 class DocumentBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=255, examples=["Academic Regulations 2026"])
-    category_id: int | None = Field(default=None, description="Target category identifier")
+    category_id: UUID | None = Field(default=None, description="Target category identifier")
 
 
 class DocumentCreate(DocumentBase):
@@ -30,27 +31,34 @@ class DocumentCreate(DocumentBase):
 
 class DocumentUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=2, max_length=255)
-    category_id: int | None = Field(default=None)
+    category_id: UUID | None = Field(default=None)
 
 
 class DocumentResponse(DocumentBase):
-    id: int
+    id: UUID
     file_name: str
     file_path: str
     file_size: int
     file_type: str
     file_hash: str
     status: DocumentStatus
-    uploader_id: int | None
+    created_by_id: UUID | None = Field(default=None, description="User who uploaded/created document")
     total_pages: int
     chunk_count: int
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None = Field(default=None, description="Soft-delete timestamp if deleted")
     category: CategoryResponse | None = None
     download_url: str | None = Field(default=None, description="Presigned download or view URL for the original document")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @computed_field
+    @property
+    def uploader_id(self) -> UUID | None:
+        """Backward-compatibility accessor for uploader_id."""
+        return self.created_by_id
 
     @field_validator("download_url", mode="before")
     @classmethod
@@ -77,7 +85,7 @@ class DocumentDetailResponse(DocumentResponse):
 
 
 class DocumentDownloadUrlResponse(BaseModel):
-    document_id: int
+    document_id: UUID
     file_name: str
     download_url: str
     expires_in_seconds: int = 3600

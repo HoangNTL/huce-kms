@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 from api.services.crawler.schemas import PageMetadata
@@ -17,7 +18,7 @@ class IngestPagePayload(BaseModel):
 class IngestItemResult(BaseModel):
     """Result of ingesting a single document item (Markdown page or attached PDF)."""
 
-    document_id: int | None = None
+    document_id: UUID | None = None
     title: str
     file_name: str
     file_type: str

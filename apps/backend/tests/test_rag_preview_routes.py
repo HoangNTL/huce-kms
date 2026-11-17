@@ -61,6 +61,7 @@ class TestRAGPreviewExtraction(unittest.TestCase):
         self.assertIn("Công dân Việt Nam", c2.content)
 
     def test_preview_retrieval_service(self):
+        from uuid import UUID
         from api.schemas.rag import SearchResultItem
         from api.services.rag.service import RAGService
 
@@ -68,7 +69,7 @@ class TestRAGPreviewExtraction(unittest.TestCase):
             SearchResultItem(
                 id="point-1",
                 score=0.88,
-                document_id=10,
+                document_id=UUID("018e3a2b-7c10-7b56-8a5e-851944621ef0"),
                 title="Quy định học vụ",
                 page_number=2,
                 chunk_index=1,

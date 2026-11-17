@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +19,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         await self.session.flush()
         return chunks
 
-    async def get_by_document_id(self, document_id: int) -> Sequence[DocumentChunk]:
+    async def get_by_document_id(self, document_id: UUID) -> Sequence[DocumentChunk]:
         """Fetch all chunks for a given document ordered by chunk_index."""
         stmt = (
             select(DocumentChunk)
@@ -28,7 +29,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
-    async def delete_by_document_id(self, document_id: int) -> int:
+    async def delete_by_document_id(self, document_id: UUID) -> int:
         """Delete all chunks belonging to a document."""
         stmt = delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
         result = await self.session.execute(stmt)

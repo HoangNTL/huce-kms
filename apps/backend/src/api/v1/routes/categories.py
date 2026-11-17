@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 from fastapi import APIRouter, Depends, Path, status
 
 from api.core.dependencies import AdminUserDep, DatabaseDep
@@ -39,7 +40,7 @@ async def list_categories(service: CategoryServiceDep):
     summary="Get category details by ID",
 )
 async def get_category(
-    category_id: Annotated[int, Path(ge=1, description="Category unique identifier")],
+    category_id: Annotated[UUID, Path(description="Category unique identifier")],
     service: CategoryServiceDep,
 ):
     category = await service.get_category_by_id(category_id)
@@ -75,7 +76,7 @@ async def create_category(
     summary="Update document category (Admin only)",
 )
 async def update_category(
-    category_id: Annotated[int, Path(ge=1, description="Category unique identifier")],
+    category_id: Annotated[UUID, Path(description="Category unique identifier")],
     payload: CategoryUpdate,
     admin_user: AdminUserDep,
     service: CategoryServiceDep,
@@ -94,7 +95,7 @@ async def update_category(
     summary="Delete document category (Admin only)",
 )
 async def delete_category(
-    category_id: Annotated[int, Path(ge=1, description="Category unique identifier")],
+    category_id: Annotated[UUID, Path(description="Category unique identifier")],
     admin_user: AdminUserDep,
     service: CategoryServiceDep,
 ):

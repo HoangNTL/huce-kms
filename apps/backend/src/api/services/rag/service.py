@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncGenerator
+from uuid import UUID
 from google import genai
 
 from api.core.config import settings
@@ -17,7 +18,6 @@ from api.services.ai.schemas.ai import (
     AIProviderError,
     GenerationRequest,
 )
-from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.vector_store import QdrantVectorStore
 
 logger = logging.getLogger("huce_kms.rag.service")
@@ -38,12 +38,12 @@ class RAGService:
 
     def __init__(
         self,
-        embedder: EmbeddingManager | GeminiEmbeddingService | None = None,
+        embedder: EmbeddingManager | None = None,
         vector_store: QdrantVectorStore | None = None,
         generation_manager: GenerationManager | None = None,
         llm_model: str = settings.LLM_MODEL,
     ):
-        self.embedder = embedder or GeminiEmbeddingService()
+        self.embedder = embedder or EmbeddingManager()
         self.vector_store = vector_store or QdrantVectorStore()
         self.generation_manager = generation_manager or GenerationManager()
         self.llm_model = llm_model
@@ -64,7 +64,7 @@ class RAGService:
     async def search(
         self,
         query: str,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         top_k: int = 5,
         score_threshold: float | None = 0.4,
     ) -> list[SearchResultItem]:
@@ -86,12 +86,17 @@ class RAGService:
                 continue
 
             payload = pt.get("payload", {})
+            raw_doc_id = payload.get("document_id")
+            doc_uuid = UUID(str(raw_doc_id)) if raw_doc_id else UUID("00000000-0000-0000-0000-000000000000")
+            raw_cat_id = payload.get("category_id")
+            cat_uuid = UUID(str(raw_cat_id)) if raw_cat_id else None
+
             items.append(
                 SearchResultItem(
                     id=pt["id"],
-                    document_id=int(payload.get("document_id", 0)),
+                    document_id=doc_uuid,
                     title=str(payload.get("title", "")),
-                    category_id=payload.get("category_id"),
+                    category_id=cat_uuid,
                     page_number=int(payload.get("page_number", 1)),
                     chunk_index=int(payload.get("chunk_index", 0)),
                     score=score,
@@ -131,7 +136,7 @@ class RAGService:
     async def query(
         self,
         query: str,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         top_k: int = 5,
         temperature: float = 0.3,
     ) -> RAGQueryResponse:
@@ -192,7 +197,7 @@ class RAGService:
     async def stream_query(
         self,
         query: str,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         top_k: int = 5,
         temperature: float = 0.3,
     ) -> AsyncGenerator[str, None]:
@@ -292,7 +297,7 @@ class RAGService:
     async def preview_retrieval(
         self,
         query: str,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         top_k: int = 5,
         score_threshold: float | None = 0.35,
     ) -> "RetrievalPreviewResponse":

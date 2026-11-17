@@ -1,4 +1,7 @@
+import os
+import time
 from datetime import datetime
+from uuid import UUID
 from sqlalchemy import DateTime, func
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -26,6 +29,18 @@ async_session_factory = async_sessionmaker(
 )
 
 
+def uuid7() -> UUID:
+    """Generate an RFC 9562 compliant UUIDv7 (timestamp-ordered 128-bit UUID)."""
+    ms = int(time.time() * 1000)
+    rand_bytes = os.urandom(10)
+    time_high = (ms >> 16) & 0xFFFFFFFF
+    time_low = ms & 0xFFFF
+    time_hi_and_version = (0x7 << 12) | (int.from_bytes(rand_bytes[:2], "big") & 0x0FFF)
+    clock_seq = (0x80 | (rand_bytes[2] & 0x3F)) << 8 | rand_bytes[3]
+    node = int.from_bytes(rand_bytes[4:10], "big")
+    return UUID(fields=(time_high, time_low, time_hi_and_version, clock_seq >> 8, clock_seq & 0xFF, node))
+
+
 # 3. SQLAlchemy 2.0 Base Model
 class Base(AsyncAttrs, DeclarativeBase):
     """Base declarative class for all ORM models."""
@@ -47,3 +62,19 @@ class TimestampMixin:
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class SoftDeleteMixin:
+    """Mixin providing soft-delete support via deleted_at timestamp."""
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+        index=True,
+    )
+
+    @property
+    def is_deleted(self) -> bool:
+        """Check whether the record has been soft-deleted."""
+        return self.deleted_at is not None

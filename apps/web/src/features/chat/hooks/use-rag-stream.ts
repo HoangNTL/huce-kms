@@ -51,7 +51,7 @@ export function useRAGStream(threadId: string) {
   )
 
   const sendMessage = React.useCallback(
-    async (query: string, categoryId?: number) => {
+    async (query: string, categoryId?: string | number) => {
       const trimmed = query.trim()
       if (!trimmed || isLoading) return
 

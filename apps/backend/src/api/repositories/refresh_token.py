@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +13,9 @@ class RefreshTokenRepository(BaseRepository[RefreshToken]):
     def __init__(self, session: AsyncSession):
         super().__init__(RefreshToken, session)
 
-    async def get_by_token(self, token: str) -> RefreshToken | None:
-        """Fetch active or revoked refresh token by string."""
-        stmt = select(RefreshToken).where(RefreshToken.token == token)
+    async def get_by_token_hash(self, token_hash: str) -> RefreshToken | None:
+        """Fetch active or revoked refresh token by SHA-256 hash."""
+        stmt = select(RefreshToken).where(RefreshToken.token_hash == token_hash)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -23,7 +24,7 @@ class RefreshTokenRepository(BaseRepository[RefreshToken]):
         token_record.is_revoked = True
         await self.session.flush()
 
-    async def revoke_all_for_user(self, user_id: int) -> None:
+    async def revoke_all_for_user(self, user_id: UUID) -> None:
         """Revoke all refresh tokens for a user (logout all devices / security incident)."""
         stmt = (
             update(RefreshToken)

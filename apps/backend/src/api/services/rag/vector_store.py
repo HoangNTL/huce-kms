@@ -69,12 +69,12 @@ class QdrantVectorStore:
 
         points = [
             PointStruct(
-                id=chunk["id"],
+                id=str(chunk["id"]),
                 vector=vector,
                 payload={
-                    "document_id": chunk["document_id"],
+                    "document_id": str(chunk["document_id"]),
                     "title": chunk.get("title", ""),
-                    "category_id": chunk.get("category_id"),
+                    "category_id": str(chunk["category_id"]) if chunk.get("category_id") else None,
                     "chunk_index": chunk["chunk_index"],
                     "page_number": chunk["page_number"],
                     "content": chunk["content"],
@@ -89,7 +89,7 @@ class QdrantVectorStore:
         )
         logger.info("Upserted %d points to Qdrant collection '%s'", len(points), self.collection_name)
 
-    async def delete_by_document_id(self, document_id: int) -> None:
+    async def delete_by_document_id(self, document_id: Any) -> None:
         """Delete all points associated with a specific document."""
         await self.ensure_collection()
         client = self.get_client()
@@ -100,37 +100,42 @@ class QdrantVectorStore:
                 must=[
                     FieldCondition(
                         key="document_id",
-                        match=MatchValue(value=document_id),
+                        match=MatchValue(value=str(document_id)),
                     )
                 ]
             ),
         )
-        logger.info("Deleted Qdrant points for document_id=%d", document_id)
+        logger.info("Deleted Qdrant points for document_id=%s", document_id)
 
     async def update_payload_by_document_id(
-        self, document_id: int, payload: dict[str, Any]
+        self, document_id: Any, payload: dict[str, Any]
     ) -> None:
         """Update metadata payload of all chunks belonging to a document without re-embedding."""
         if not payload:
             return
+
+        # Ensure UUID fields in payload are converted to string for Qdrant compatibility
+        sanitized_payload = {
+            k: str(v) if hasattr(v, "hex") else v for k, v in payload.items()
+        }
 
         await self.ensure_collection()
         client = self.get_client()
 
         await client.set_payload(
             collection_name=self.collection_name,
-            payload=payload,
+            payload=sanitized_payload,
             points=Filter(
                 must=[
                     FieldCondition(
                         key="document_id",
-                        match=MatchValue(value=document_id),
+                        match=MatchValue(value=str(document_id)),
                     )
                 ]
             ),
         )
         logger.info(
-            "Updated Qdrant payload for document_id=%d: %s",
+            "Updated Qdrant payload for document_id=%s: %s",
             document_id,
             list(payload.keys()),
         )
@@ -139,7 +144,7 @@ class QdrantVectorStore:
         self,
         query_vector: list[float],
         limit: int = 5,
-        category_id: int | None = None,
+        category_id: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Search similar document chunks by vector similarity."""
         await self.ensure_collection()
@@ -151,7 +156,7 @@ class QdrantVectorStore:
                 must=[
                     FieldCondition(
                         key="category_id",
-                        match=MatchValue(value=category_id),
+                        match=MatchValue(value=str(category_id)),
                     )
                 ]
             )

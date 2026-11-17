@@ -42,3 +42,23 @@ class BaseRepository(Generic[ModelType]):
         """Delete an existing record."""
         await self.session.delete(instance)
         await self.session.flush()
+
+    async def soft_delete(self, instance: ModelType) -> ModelType:
+        """Mark record as soft-deleted by setting deleted_at to current UTC timestamp."""
+        if hasattr(instance, "deleted_at"):
+            from datetime import datetime, timezone
+
+            instance.deleted_at = datetime.now(timezone.utc)
+            await self.session.flush()
+            await self.session.refresh(instance)
+        else:
+            await self.delete(instance)
+        return instance
+
+    async def restore(self, instance: ModelType) -> ModelType:
+        """Restore a soft-deleted record by clearing deleted_at."""
+        if hasattr(instance, "deleted_at"):
+            instance.deleted_at = None
+            await self.session.flush()
+            await self.session.refresh(instance)
+        return instance

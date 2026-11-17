@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID
 
 from api.models.document import Document
 from api.schemas.document import DocumentResponse
@@ -48,7 +49,7 @@ class TestIngestionAdapter(unittest.IsolatedAsyncioTestCase):
 
         # When creating in draft mode
         async def fake_create(doc):
-            doc.id = 101
+            doc.id = UUID("018e3a2b-7c10-7b56-8a5e-851944621ef0")
             return doc
 
         self.mock_doc_repo.create = AsyncMock(side_effect=fake_create)
@@ -74,7 +75,7 @@ class TestIngestionAdapter(unittest.IsolatedAsyncioTestCase):
     async def test_ingest_page_auto_publish_mode(self):
         now = datetime.now(timezone.utc)
         mock_resp = DocumentResponse(
-            id=202,
+            id=UUID("018e3a2b-7c10-7b56-8a5e-851944621ef1"),
             title="Thông báo học bổng",
             file_name="page_abc_content.md",
             file_path="/data/uploads/page_abc_content.md",
@@ -82,7 +83,7 @@ class TestIngestionAdapter(unittest.IsolatedAsyncioTestCase):
             file_size=100,
             file_hash="hash123",
             status="indexed",
-            uploader_id=None,
+            created_by_id=None,
             total_pages=1,
             chunk_count=3,
             error_message=None,
@@ -100,7 +101,7 @@ class TestIngestionAdapter(unittest.IsolatedAsyncioTestCase):
     async def test_ingest_duplicate_skips(self):
         # Mock that file_hash already exists
         existing_doc = MagicMock()
-        existing_doc.id = 55
+        existing_doc.id = UUID("018e3a2b-7c10-7b56-8a5e-851944621ef2")
         self.mock_doc_repo.get_by_file_hash = AsyncMock(return_value=existing_doc)
 
         results = await self.adapter.ingest_page(self.page_dir, auto_publish=False)

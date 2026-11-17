@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,18 +13,31 @@ class UserRepository(BaseRepository[User]):
     def __init__(self, session: AsyncSession):
         super().__init__(User, session)
 
-    async def get_by_username(self, username: str) -> User | None:
+    async def get_by_id(self, id: UUID, include_deleted: bool = False) -> User | None:
+        """Fetch user by ID, excluding soft-deleted users unless requested."""
+        user = await super().get_by_id(id)
+        if user and not include_deleted and user.deleted_at is not None:
+            return None
+        return user
+
+    async def get_by_username(self, username: str, include_deleted: bool = False) -> User | None:
         stmt = select(User).where(User.username == username)
+        if not include_deleted:
+            stmt = stmt.where(User.deleted_at.is_(None))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_by_email(self, email: str) -> User | None:
+    async def get_by_email(self, email: str, include_deleted: bool = False) -> User | None:
         stmt = select(User).where(User.email == email)
+        if not include_deleted:
+            stmt = stmt.where(User.deleted_at.is_(None))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_by_username_or_email(self, identifier: str) -> User | None:
+    async def get_by_username_or_email(self, identifier: str, include_deleted: bool = False) -> User | None:
         stmt = select(User).where(or_(User.username == identifier, User.email == identifier))
+        if not include_deleted:
+            stmt = stmt.where(User.deleted_at.is_(None))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -34,10 +48,13 @@ class UserRepository(BaseRepository[User]):
         is_active: bool | None = None,
         skip: int = 0,
         limit: int = 10,
+        include_deleted: bool = False,
     ) -> tuple[Sequence[User], int]:
         """Search users with filtering by keyword, role, status, and pagination."""
         # 1. Build Count Query
         count_stmt = select(func.count(User.id))
+        if not include_deleted:
+            count_stmt = count_stmt.where(User.deleted_at.is_(None))
         if q:
             search_filter = or_(
                 User.username.ilike(f"%{q}%"),
@@ -55,6 +72,8 @@ class UserRepository(BaseRepository[User]):
 
         # 2. Build Data Query
         data_stmt = select(User).offset(skip).limit(limit).order_by(User.id.desc())
+        if not include_deleted:
+            data_stmt = data_stmt.where(User.deleted_at.is_(None))
         if q:
             data_stmt = data_stmt.where(search_filter)
         if role:

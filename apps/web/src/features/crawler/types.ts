@@ -27,7 +27,7 @@ export interface CrawlDirectPayload {
   url: string
   auto_ingest?: boolean
   auto_publish?: boolean
-  category_id?: number
+  category_id?: string
 }
 
 export interface CrawlDirectResult {
@@ -83,7 +83,7 @@ export interface ApproveQueuePayload {
 export interface IngestPayload {
   session_id?: string
   page_hash?: string
-  category_id?: number
+  category_id?: string
   auto_publish?: boolean
 }
 

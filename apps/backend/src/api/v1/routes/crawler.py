@@ -94,7 +94,7 @@ async def crawl_direct_url(
             page_dir=result.artifact_dir,
             category_id=payload.category_id,
             auto_publish=payload.auto_publish,
-            uploader_id=admin.id,
+            created_by_id=admin.id,
         )
         response_data["ingested"] = True
         response_data["ingest_results"] = [r.model_dump() for r in ingest_results]
@@ -254,7 +254,7 @@ async def ingest_crawl_artifacts(
             page_dir=page_dir,
             category_id=payload.category_id,
             auto_publish=payload.auto_publish,
-            uploader_id=admin.id,
+            created_by_id=admin.id,
         )
         return BaseResponse(
             code="INGEST_SUCCESS",
@@ -271,7 +271,7 @@ async def ingest_crawl_artifacts(
             session_dir=session_dir,
             category_id=payload.category_id,
             auto_publish=payload.auto_publish,
-            uploader_id=admin.id,
+            created_by_id=admin.id,
         )
         return BaseResponse(
             code="INGEST_SUCCESS",

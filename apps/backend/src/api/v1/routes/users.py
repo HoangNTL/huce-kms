@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Query, status
 
 from api.core.dependencies import AdminUserDep, CurrentUserDep, DatabaseDep, PaginationDep
@@ -76,13 +77,30 @@ async def list_users(
 
 
 @router.get(
+    "/me",
+    response_model=BaseResponse[UserResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Retrieve profile of currently authenticated user",
+)
+async def get_current_user_profile(
+    current_user: CurrentUserDep,
+    service: UserServiceDep,
+):
+    user = await service.get_user_by_id(current_user.id)
+    return BaseResponse(
+        message="User profile retrieved successfully.",
+        data=user,
+    )
+
+
+@router.get(
     "/{user_id}",
     response_model=BaseResponse[UserResponse],
     status_code=status.HTTP_200_OK,
     summary="Get user details by ID (Admin or account owner)",
 )
 async def get_user(
-    user_id: Annotated[int, Path(ge=1, description="User unique identifier")],
+    user_id: Annotated[UUID, Path(description="User unique identifier")],
     current_user: CurrentUserDep,
     service: UserServiceDep,
 ):
@@ -103,7 +121,7 @@ async def get_user(
     summary="Update user profile (Admin or account owner)",
 )
 async def update_user(
-    user_id: Annotated[int, Path(ge=1, description="User unique identifier")],
+    user_id: Annotated[UUID, Path(description="User unique identifier")],
     payload: UserUpdate,
     current_user: CurrentUserDep,
     service: UserServiceDep,
@@ -125,7 +143,7 @@ async def update_user(
     summary="Activate or deactivate user account (Admin only)",
 )
 async def update_user_status(
-    user_id: Annotated[int, Path(ge=1, description="User unique identifier")],
+    user_id: Annotated[UUID, Path(description="User unique identifier")],
     payload: UserStatusUpdate,
     admin_user: AdminUserDep,
     service: UserServiceDep,
@@ -149,7 +167,7 @@ async def update_user_status(
     summary="Change user role ('user' or 'admin') (Admin only)",
 )
 async def update_user_role(
-    user_id: Annotated[int, Path(ge=1, description="User unique identifier")],
+    user_id: Annotated[UUID, Path(description="User unique identifier")],
     payload: UserRoleUpdate,
     admin_user: AdminUserDep,
     service: UserServiceDep,

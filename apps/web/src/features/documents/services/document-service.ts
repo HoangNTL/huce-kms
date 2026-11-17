@@ -11,7 +11,7 @@ export const documentService = {
       skip,
       limit: pageSize,
       q: params?.search ? String(params.search) : undefined,
-      category_id: params?.category_id ? Number(params.category_id) : undefined,
+      category_id: params?.category_id ? String(params.category_id) : undefined,
       status: params?.status && params.status !== "ALL" ? String(params.status).toLowerCase() : undefined,
     }
 
@@ -29,7 +29,7 @@ export const documentService = {
     const items: DocumentMetadata[] = (res?.items || []).map((doc) => {
       const categoryObj = doc.category as { name?: string } | undefined
       return {
-        id: doc.id as string | number,
+        id: String(doc.id || ""),
         title: String(doc.title || ""),
         file_name: String(doc.file_name || ""),
         file_path: doc.file_path ? String(doc.file_path) : undefined,
@@ -39,7 +39,7 @@ export const documentService = {
         chunk_count: Number(doc.chunk_count ?? 0),
         total_pages: Number(doc.total_pages ?? 0),
         category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : "Chung",
-        category_id: doc.category_id ? Number(doc.category_id) : undefined,
+        category_id: doc.category_id ? String(doc.category_id) : undefined,
         status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
         download_url: doc.download_url ? String(doc.download_url) : undefined,
         error_message: doc.error_message ? String(doc.error_message) : null,
@@ -70,7 +70,7 @@ export const documentService = {
     const categoryObj = doc.category as { name?: string } | undefined
 
     return {
-      id: doc.id as string | number,
+      id: String(doc.id || id),
       title: String(doc.title || ""),
       file_name: String(doc.file_name || ""),
       file_path: doc.file_path ? String(doc.file_path) : undefined,
@@ -80,7 +80,7 @@ export const documentService = {
       chunk_count: Number(doc.chunk_count ?? 0),
       total_pages: Number(doc.total_pages ?? 0),
       category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : "Chung",
-      category_id: doc.category_id ? Number(doc.category_id) : undefined,
+      category_id: doc.category_id ? String(doc.category_id) : undefined,
       status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
       download_url: doc.download_url ? String(doc.download_url) : undefined,
       error_message: doc.error_message ? String(doc.error_message) : null,
@@ -88,7 +88,7 @@ export const documentService = {
       updated_at: doc.updated_at ? String(doc.updated_at) : undefined,
       chunks: (doc.chunks || []).map((c) => ({
         id: String(c.id || ""),
-        document_id: (c.document_id ?? id) as string | number,
+        document_id: String(c.document_id ?? id),
         chunk_index: Number(c.chunk_index ?? 0),
         token_count: Number(c.token_count ?? 0),
         page_number: Number(c.page_number ?? 1),
@@ -117,7 +117,7 @@ export const documentService = {
 
   async updateDocument(
     id: string | number,
-    data: { title?: string; category_id?: number | null }
+    data: { title?: string; category_id?: string | null }
   ): Promise<DocumentMetadata> {
     return apiClient.patch<DocumentMetadata>(`/documents/${id}`, data)
   },

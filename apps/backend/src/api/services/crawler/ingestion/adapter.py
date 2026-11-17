@@ -2,6 +2,7 @@ import hashlib
 import logging
 import uuid
 from pathlib import Path
+from uuid import UUID
 
 from api.core.config import settings
 from api.models.document import Document
@@ -40,11 +41,13 @@ class CrawlIngestionAdapter:
     async def ingest_page(
         self,
         page_dir: Path,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         auto_publish: bool = False,
-        uploader_id: int | None = None,
+        created_by_id: UUID | None = None,
+        uploader_id: UUID | None = None,
     ) -> list[IngestItemResult]:
         """Ingest a single page's Markdown and attached PDFs into the document system."""
+        actual_creator_id = created_by_id or uploader_id
         payload = CrawlArtifactReader.read_page(page_dir)
         results: list[IngestItemResult] = []
 
@@ -60,7 +63,7 @@ class CrawlIngestionAdapter:
                 file_type="md",
                 source_url=payload.metadata.source.url,
                 category_id=category_id,
-                uploader_id=uploader_id,
+                created_by_id=actual_creator_id,
                 auto_publish=auto_publish,
             )
             results.append(md_result)
@@ -77,7 +80,7 @@ class CrawlIngestionAdapter:
                     file_type="pdf",
                     source_url=payload.metadata.source.url,
                     category_id=category_id,
-                    uploader_id=uploader_id,
+                    created_by_id=actual_creator_id,
                     auto_publish=auto_publish,
                 )
                 results.append(pdf_result)
@@ -103,16 +106,18 @@ class CrawlIngestionAdapter:
         title: str,
         file_type: str,
         source_url: str,
-        category_id: int | None = None,
-        uploader_id: int | None = None,
+        category_id: UUID | None = None,
+        created_by_id: UUID | None = None,
         auto_publish: bool = False,
+        uploader_id: UUID | None = None,
     ) -> IngestItemResult:
+        actual_creator_id = created_by_id or uploader_id
         file_hash = self.compute_sha256(file_bytes)
 
         # Check duplicate
         existing = await self.document_repo.get_by_file_hash(file_hash)
         if existing:
-            logger.info("Document already exists (hash=%s, id=%d), skipping.", file_hash, existing.id)
+            logger.info("Document already exists (hash=%s, id=%s), skipping.", file_hash, existing.id)
             return IngestItemResult(
                 document_id=existing.id,
                 title=title,
@@ -131,7 +136,7 @@ class CrawlIngestionAdapter:
                 file_name=file_name,
                 title=title,
                 category_id=category_id,
-                uploader_id=uploader_id,
+                created_by_id=actual_creator_id,
             )
             return IngestItemResult(
                 document_id=doc_resp.id,
@@ -159,7 +164,7 @@ class CrawlIngestionAdapter:
                 file_hash=file_hash,
                 status="uploaded",
                 category_id=category_id,
-                uploader_id=uploader_id,
+                created_by_id=actual_creator_id,
                 total_pages=1,
                 chunk_count=0,
                 error_message=None,
@@ -178,11 +183,13 @@ class CrawlIngestionAdapter:
     async def ingest_session(
         self,
         session_dir: Path,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         auto_publish: bool = False,
-        uploader_id: int | None = None,
+        created_by_id: UUID | None = None,
+        uploader_id: UUID | None = None,
     ) -> IngestSummaryResponse:
         """Ingest all successfully crawled pages in a session."""
+        actual_creator_id = created_by_id or uploader_id
         payloads = CrawlArtifactReader.read_session(session_dir)
         all_items: list[IngestItemResult] = []
 
@@ -192,7 +199,7 @@ class CrawlIngestionAdapter:
                     page_dir=p.page_dir,
                     category_id=category_id,
                     auto_publish=auto_publish,
-                    uploader_id=uploader_id,
+                    created_by_id=actual_creator_id,
                 )
                 all_items.extend(page_results)
             except Exception as e:

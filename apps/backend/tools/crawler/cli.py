@@ -364,9 +364,9 @@ async def run_ingest(args: argparse.Namespace) -> int:
     from api.repositories.category import CategoryRepository
     from api.repositories.document import DocumentRepository
     from api.repositories.document_chunk import DocumentChunkRepository
+    from api.services.ai.managers.embedding_manager import EmbeddingManager
     from api.services.crawler.ingestion.adapter import CrawlIngestionAdapter
     from api.services.document import DocumentService
-    from api.services.rag.embedder import GeminiEmbeddingService
     from api.services.rag.vector_store import QdrantVectorStore
 
     log_level = logging.DEBUG if args.verbose else logging.INFO
@@ -384,7 +384,7 @@ async def run_ingest(args: argparse.Namespace) -> int:
         doc_repo = DocumentRepository(session)
         chunk_repo = DocumentChunkRepository(session)
         cat_repo = CategoryRepository(session)
-        embedder = GeminiEmbeddingService()
+        embedder = EmbeddingManager()
         vector_store = QdrantVectorStore()
 
         doc_service = DocumentService(

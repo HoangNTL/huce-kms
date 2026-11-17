@@ -4,7 +4,6 @@ from api.services.category import CategoryService
 from api.services.document import DocumentService
 from api.services.rag import (
     DocumentParser,
-    GeminiEmbeddingService,
     QdrantVectorStore,
     RAGService,
     TextChunker,
@@ -19,7 +18,6 @@ __all__ = [
     "DocumentService",
     "EmbeddingManager",
     "GenerationManager",
-    "GeminiEmbeddingService",
     "QdrantVectorStore",
     "RAGService",
     "StorageService",

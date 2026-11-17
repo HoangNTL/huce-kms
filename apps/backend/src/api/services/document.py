@@ -3,8 +3,10 @@ import logging
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
+from uuid import UUID
 
 from api.core.config import settings
+from api.core.database import uuid7
 from api.core.exceptions import (
     BadRequestException,
     ConflictException,
@@ -24,7 +26,6 @@ from api.schemas.document import (
 from api.services.ai.managers.embedding_manager import EmbeddingManager
 from api.services.rag.chunker import TextChunker
 from api.services.rag.cleaner import TextCleaner
-from api.services.rag.embedder import GeminiEmbeddingService
 from api.services.rag.parser import DocumentParser
 from api.services.rag.vector_store import QdrantVectorStore
 from api.services.storage import StorageService, get_storage_service
@@ -40,7 +41,7 @@ class DocumentService:
         document_repo: DocumentRepository,
         chunk_repo: DocumentChunkRepository,
         category_repo: CategoryRepository,
-        embedder: EmbeddingManager | GeminiEmbeddingService,
+        embedder: EmbeddingManager,
         vector_store: QdrantVectorStore,
         storage_service: StorageService | None = None,
     ):
@@ -68,11 +69,13 @@ class DocumentService:
         file_bytes: bytes,
         file_name: str,
         title: str,
-        category_id: int | None = None,
-        uploader_id: int | None = None,
+        category_id: UUID | None = None,
+        created_by_id: UUID | None = None,
         chunk_strategy: str = "legal_structural",
+        uploader_id: UUID | None = None,
     ) -> DocumentResponse:
         """Validate, store, parse, embed and index an uploaded document into PostgreSQL and Qdrant."""
+        actual_creator_id = created_by_id or uploader_id
         # 1. Validate file extension
         suffix = Path(file_name).suffix.lower()
         if suffix not in settings.ALLOWED_DOCUMENT_EXTENSIONS:
@@ -130,7 +133,7 @@ class DocumentService:
             file_hash=file_hash,
             status="pending",
             category_id=category_id,
-            uploader_id=uploader_id,
+            created_by_id=actual_creator_id,
             total_pages=0,
             chunk_count=0,
             error_message=None,
@@ -169,11 +172,11 @@ class DocumentService:
                     message="No extractable text content found in document."
                 )
 
-            # Assign UUID to each chunk (for 1-1 mapping with Qdrant Point IDs)
+            # Assign UUIDv7 to each chunk (for 1-1 mapping with Qdrant Point IDs)
             chunks_with_id = []
             for c in raw_chunks:
                 chunk_dict = dict(c)
-                chunk_dict["id"] = str(uuid.uuid4())
+                chunk_dict["id"] = uuid7()
                 chunk_dict["document_id"] = document.id
                 chunk_dict["title"] = document.title
                 chunk_dict["category_id"] = document.category_id
@@ -242,10 +245,10 @@ class DocumentService:
                 original_filename=document.file_name,
             )
         except Exception as url_err:
-            logger.warning("Could not generate presigned download URL for doc id=%d: %s", document.id, url_err)
+            logger.warning("Could not generate presigned download URL for doc id=%s: %s", document.id, url_err)
         return resp
 
-    async def get_document_by_id(self, document_id: int) -> DocumentResponse:
+    async def get_document_by_id(self, document_id: UUID) -> DocumentResponse:
         """Retrieve a document by ID with dynamic presigned download URL."""
         doc = await self.document_repo.get_with_category(document_id)
         if not doc:
@@ -257,10 +260,10 @@ class DocumentService:
                 original_filename=doc.file_name,
             )
         except Exception as e:
-            logger.warning("Could not attach presigned download_url for doc id=%d: %s", document_id, e)
+            logger.warning("Could not attach presigned download_url for doc id=%s: %s", document_id, e)
         return resp
 
-    async def get_document_detail(self, document_id: int) -> DocumentDetailResponse:
+    async def get_document_detail(self, document_id: UUID) -> DocumentDetailResponse:
         """Retrieve document metadata and all associated text chunks with download URL."""
         doc = await self.document_repo.get_with_chunks(document_id)
         if not doc:
@@ -272,11 +275,11 @@ class DocumentService:
                 original_filename=doc.file_name,
             )
         except Exception as e:
-            logger.warning("Could not attach presigned download_url for doc detail id=%d: %s", document_id, e)
+            logger.warning("Could not attach presigned download_url for doc detail id=%s: %s", document_id, e)
         return resp
 
     async def get_document_download_url(
-        self, document_id: int, expiry_seconds: int = 3600
+        self, document_id: UUID, expiry_seconds: int = 3600
     ) -> DocumentDownloadUrlResponse:
         """Generate a presigned URL specifically for downloading or previewing a document."""
         doc = await self.document_repo.get_by_id(document_id)
@@ -294,7 +297,7 @@ class DocumentService:
             expires_in_seconds=expiry_seconds,
         )
 
-    async def get_document_file_bytes(self, document_id: int) -> tuple[bytes, str, str]:
+    async def get_document_file_bytes(self, document_id: UUID) -> tuple[bytes, str, str]:
         """Retrieve the raw file bytes, filename, and content-type for a document."""
         doc = await self.document_repo.get_by_id(document_id)
         if not doc:
@@ -307,7 +310,7 @@ class DocumentService:
         self,
         skip: int = 0,
         limit: int = 10,
-        category_id: int | None = None,
+        category_id: UUID | None = None,
         status: str | None = None,
         query: str | None = None,
     ) -> tuple[Sequence[DocumentResponse], int]:
@@ -321,30 +324,76 @@ class DocumentService:
         )
         return [DocumentResponse.model_validate(d) for d in docs], total
 
-    async def delete_document(self, document_id: int) -> None:
-        """Delete document, cascading its chunks, vector embeddings in Qdrant, and physical file."""
+    async def delete_document(self, document_id: UUID) -> None:
+        """
+        Soft-delete a document record and clean up associated search vectors.
+        1. Hard-deletes vector points from Qdrant to ensure AI cannot retrieve deleted content.
+        2. Retains the physical file in storage for compliance, audit, and recovery.
+        3. Marks the document record as soft-deleted (deleted_at set) in PostgreSQL.
+        """
         doc = await self.document_repo.get_by_id(document_id)
         if not doc:
             raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
 
-        # 1. Delete points in Qdrant Vector DB
+        # 1. Delete points in Qdrant Vector DB (prevent AI hallucinations / citation of deleted records)
         try:
             await self.vector_store.delete_by_document_id(document_id)
         except Exception as e:
-            logger.warning("Failed to delete Qdrant points for document id=%d: %s", document_id, e)
+            logger.warning("Failed to delete Qdrant points for document id=%s: %s", document_id, e)
 
-        # 2. Delete file from storage (MinIO or local filesystem)
-        try:
-            await self.storage_service.delete_file(doc.file_path)
-        except Exception as e:
-            logger.warning("Failed to remove file '%s' from storage: %s", doc.file_path, e)
+        # 2. In soft-delete mode, physical storage file is preserved for retention/recovery
 
-        # 3. Delete Document record from PostgreSQL (cascades chunks automatically)
-        await self.document_repo.delete(doc)
-        logger.info("Deleted document id=%d ('%s')", document_id, doc.title)
+        # 3. Soft-delete Document record from PostgreSQL
+        await self.document_repo.soft_delete(doc)
+        logger.info("Soft-deleted document id=%s ('%s')", document_id, doc.title)
+
+    async def restore_document(self, document_id: UUID) -> DocumentResponse:
+        """
+        Restore a soft-deleted document:
+        1. Clears deleted_at in PostgreSQL.
+        2. Re-indexes document chunks into Qdrant vector store.
+        """
+        doc = await self.document_repo.get_by_id(document_id, include_deleted=True)
+        if not doc or doc.deleted_at is None:
+            raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
+
+        # 1. Restore record in PostgreSQL
+        await self.document_repo.restore(doc)
+
+        # 2. Re-index chunks into Qdrant
+        doc_with_chunks = await self.document_repo.get_with_chunks(document_id)
+        if doc_with_chunks and doc_with_chunks.chunks:
+            try:
+                chunk_texts = [c.content for c in doc_with_chunks.chunks]
+                embed_res = await self.embedder.embed_texts(chunk_texts)
+                embeddings = embed_res.embeddings
+                points = [
+                    {
+                        "id": str(c.id),
+                        "vector": emb,
+                        "payload": {
+                            "document_id": str(doc.id),
+                            "chunk_index": c.chunk_index,
+                            "content": c.content,
+                            "token_count": c.token_count,
+                            "page_number": c.page_number,
+                            "heading_path": c.heading_path,
+                            "category_id": str(doc.category_id) if doc.category_id else None,
+                            "title": doc.title,
+                        },
+                    }
+                    for c, emb in zip(doc_with_chunks.chunks, embeddings)
+                ]
+                await self.vector_store.upsert_chunks(points)
+                logger.info("Re-indexed %d chunks into Qdrant for restored document id=%s", len(points), document_id)
+            except Exception as e:
+                logger.warning("Failed to re-index Qdrant points during document restore id=%s: %s", document_id, e)
+
+        updated_doc = await self.document_repo.get_with_category(document_id)
+        return DocumentResponse.model_validate(updated_doc or doc)
 
     async def update_document(
-        self, document_id: int, payload: DocumentUpdate
+        self, document_id: UUID, payload: DocumentUpdate
     ) -> DocumentResponse:
         """Update document metadata (title and/or category) and sync to Qdrant."""
         doc = await self.document_repo.get_by_id(document_id)
