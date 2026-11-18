@@ -56,6 +56,7 @@ export function FeedbackButtons({
         className="h-7 w-7 text-muted hover:text-heading"
         onClick={handleCopy}
         title="Sao chép câu trả lời"
+        aria-label="Sao chép câu trả lời"
       >
         {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
       </Button>
@@ -71,6 +72,7 @@ export function FeedbackButtons({
         )}
         onClick={() => handleFeedback("like")}
         title="Hữu ích"
+        aria-label="Đánh giá hữu ích"
       >
         <ThumbsUp className="h-3.5 w-3.5" />
       </Button>
@@ -86,6 +88,7 @@ export function FeedbackButtons({
         )}
         onClick={() => handleFeedback("dislike")}
         title="Chưa chính xác"
+        aria-label="Đánh giá chưa chính xác"
       >
         <ThumbsDown className="h-3.5 w-3.5" />
       </Button>

@@ -54,7 +54,7 @@ export function ChatComposer({
         className="min-h-[50px] resize-none border-0 bg-transparent p-1 text-sm text-heading placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-0 focus-visible:outline-none"
       />
       <div className="flex items-center justify-between pt-2">
-        <span className="text-[11px] text-muted hidden sm:inline">
+        <span className="text-2xs text-muted hidden sm:inline">
           Shift + Enter để xuống dòng
         </span>
 

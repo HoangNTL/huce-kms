@@ -172,7 +172,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
                     setTitle(cleanFileName(file.name))
                     setIsTitleManuallyEdited(false)
                   }}
-                  className="shrink-0 cursor-pointer text-[11px] text-brand-primary hover:underline"
+                  className="shrink-0 cursor-pointer text-2xs text-brand-primary hover:underline"
                 >
                   Đặt lại theo tên tệp
                 </button>
@@ -229,7 +229,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
               />
               <UploadCloud className="mb-2 h-8 w-8 text-brand-primary" />
               <p className="text-xs font-semibold text-heading">Kéo thả hoặc nhấp để chọn tệp</p>
-              <p className="mt-1 text-[11px] text-muted">
+              <p className="mt-1 text-2xs text-muted">
                 Định dạng hỗ trợ: PDF, TXT, MD (Tối đa 25MB)
               </p>
             </div>
@@ -240,7 +240,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
                   <span className="truncate font-medium" title={file.name}>
                     {file.name}
                   </span>
-                  <span className="shrink-0 text-[11px] text-muted">
+                  <span className="shrink-0 text-2xs text-muted">
                     ({(file.size / 1024 / 1024).toFixed(2)} MB)
                   </span>
                 </div>

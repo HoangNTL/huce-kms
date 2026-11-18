@@ -28,7 +28,7 @@ export default function HomePage() {
               <span className="font-heading text-base font-bold leading-tight text-heading">
                 HUCE KMS
               </span>
-              <span className="text-[11px] leading-tight text-muted">
+              <span className="text-2xs leading-tight text-muted">
                 Đại học Xây dựng Hà Nội
               </span>
             </div>

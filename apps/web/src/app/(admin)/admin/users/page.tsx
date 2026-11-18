@@ -223,25 +223,25 @@ export default function AdminUsersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-border/60 bg-slate-50/40 hover:bg-slate-50/40">
-                  <TableHead className="w-14 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="w-14 text-center text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     STT
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Họ và tên
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Tên đăng nhập
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Email
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Vai trò
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Trạng thái
                   </TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400 pr-5">
+                  <TableHead className="text-right text-2xs font-semibold uppercase tracking-wider text-slate-400 pr-5">
                     Thao tác
                   </TableHead>
                 </TableRow>
@@ -324,6 +324,7 @@ export default function AdminUsersPage() {
                             size="icon-sm"
                             onClick={() => setToggleTarget(user)}
                             title={isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                            aria-label={isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
                             className={`h-7 w-7 rounded-lg transition-colors ${
                               isActive
                                 ? "text-rose-500 hover:bg-rose-50 hover:text-rose-600"

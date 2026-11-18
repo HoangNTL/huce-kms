@@ -106,6 +106,13 @@ apps/web/src/
   }
   ```
 
+### 3.4. Route Metadata & SEO
+- Every route page **MUST** define static `metadata: Metadata` or `generateMetadata()`.
+
+### 3.5. Component File Length & Single Responsibility Principle (SRP)
+- **Thin Page Orchestrators**: Page components (`page.tsx`) **MUST** act solely as orchestrators/coordinators (layout, route params, composing feature components). Monolithic page files (400+ lines) containing inline dialogs, forms, and complex tables are strictly discouraged.
+- **Decomposition**: Any dialog, modal, drawer, or complex table MUST be extracted into `src/features/<feature>/components/`. Page target length is `<= 200 lines`.
+
 ---
 
 ## 4. UI & Styling Conventions (Tailwind CSS v4 & Base UI)
@@ -131,6 +138,12 @@ The interface complies with the official visual identity of Hanoi University of 
 ### 4.3. Standard UI Primitives
 - Already installed in `src/components/ui/`: `Button`, `Input`, `Label`, `Card`, `Dialog`, `DropdownMenu`, `Select`, `NativeSelect`, `Pagination`, `Breadcrumb`, `Table`, `Badge`, `Avatar`, `Sonner`, `Tooltip`.
 - Do NOT rewrite primitive components if they already exist in `components/ui/`.
+
+### 4.4. CSS Unit Conventions
+- **`rem` for Typography**: All text sizes MUST use `rem` via Tailwind classes (`text-3xs`, `text-2xs`, `text-xs`, `text-sm`, `text-base`, `text-lg`,...). NEVER hardcode arbitrary px values like `text-[11px]` to protect accessibility (a11y).
+- **`%` for Fluid Layouts**: Use `w-full` (100%), `h-full` (100%) paired with Flexbox (`flex-1`) and CSS Grid (`fr`) and max-width containers (`rem`).
+- **`w-full` & `min-h-screen` for Full-screen Sections**: Use `w-full` for width instead of `100vw` (to prevent Windows desktop scrollbar overflow) and `min-h-screen` / `min-h-dvh` for viewport height.
+- **`px` for Borders & Radii**: Keep border widths (`border`, `border-t`, `border-2`) and radii (`--radius: 8px`) in `px` for pixel-perfect sharpness.
 
 ---
 
@@ -158,6 +171,17 @@ The interface complies with the official visual identity of Hanoi University of 
 ### 5.3. Mock Data vs. Live Backend APIs
 - Modules `documents`, `crawler`, and `dashboard` currently supply mock data in `features/<feature>/services/` for independent UI testing.
 - When connecting live backend endpoints, preserve the existing interfaces in `features/<feature>/types.ts` to avoid breaking downstream UI components.
+
+### 5.4. Mandatory Triple UI State (Loading, Empty, Error)
+- Every asynchronous data-fetching view **MUST** implement:
+  1. **Loading State**: Render `<Skeleton />`, `<TableSkeleton />`, or loading indicator. Never leave a blank view.
+  2. **Empty State**: Render semantic empty feedback (`<Empty />` / `<EmptyState />`) when data list is empty.
+  3. **Error State**: Inform users with `sonner` (`toast.error(...)`) or inline alert in clear Vietnamese.
+
+### 5.5. TypeScript & Strict Type Safety
+- **Zero-`any` Policy**: Never use `any` or `as any`. Use `unknown` + type narrowing or Zod schemas.
+- **`import type`**: Always use `import type { ... }` for type-only imports.
+- **`interface` vs `type`**: Use `interface` for component props and extendable models; `type` for unions/primitives.
 
 ---
 
@@ -191,3 +215,13 @@ flowchart LR
   ```bash
   pnpm dlx shadcn@latest add <component-name>
   ```
+
+---
+
+## 8. Accessibility & Clean Code Hygiene
+
+1. **Accessible Icon Buttons**: All `<Button size="icon">` **MUST** include `aria-label` or `title` describing the action.
+2. **No Magic Strings**: Navigation URLs must reference `ROUTES` in `@/constants/routes`.
+3. **No Debugging Artifacts**: Zero `console.log`, `debugger`, or commented-out code blocks in commits.
+4. **Guard Clauses**: Favor early returns over deeply nested `if / else` statements.
+

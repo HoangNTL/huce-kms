@@ -294,7 +294,7 @@ export default function AdminCrawlerPage() {
                     <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                     <CardTitle className="text-sm font-bold text-heading">Kết quả Crawl Thành công</CardTitle>
                   </div>
-                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-100 text-emerald-800 text-[11px]">
+                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-100 text-emerald-800 text-2xs">
                     {directResult.status}
                   </Badge>
                 </div>
@@ -319,7 +319,7 @@ export default function AdminCrawlerPage() {
                   </Badge>
                 </div>
                 {directResult.page_dir && (
-                  <p className="font-mono text-[11px] text-muted truncate">Thư mục Artifact: {directResult.page_dir}</p>
+                  <p className="font-mono text-2xs text-muted truncate">Thư mục Artifact: {directResult.page_dir}</p>
                 )}
               </CardContent>
             </Card>
@@ -442,7 +442,7 @@ export default function AdminCrawlerPage() {
                 <div className="flex items-center justify-between pb-2 border-b border-border/60">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-heading">Liên kết chờ thu thập</span>
-                    <Badge variant="outline" className="border-emerald-500/30 bg-emerald-50 text-emerald-700 text-[11px]">
+                    <Badge variant="outline" className="border-emerald-500/30 bg-emerald-50 text-emerald-700 text-2xs">
                       {queueData?.approved_total ?? 0}
                     </Badge>
                   </div>
@@ -453,6 +453,7 @@ export default function AdminCrawlerPage() {
                     disabled={isLoadingQueue}
                     className="h-8 w-8 text-muted hover:text-heading"
                     title="Làm mới hàng đợi"
+                    aria-label="Làm mới hàng đợi"
                   >
                     <RotateCw className={`h-3.5 w-3.5 transition-transform duration-500 hover:rotate-180 ${isLoadingQueue ? "animate-spin" : ""}`} />
                   </Button>
@@ -466,7 +467,7 @@ export default function AdminCrawlerPage() {
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-border bg-surface divide-y divide-border/60">
                     {queueData.approved_urls.map((url, i) => (
                       <div key={i} className="flex items-center justify-between px-3 py-2 text-xs hover:bg-muted/30">
-                        <span className="font-mono text-muted text-[11px] w-6 shrink-0">{i + 1}.</span>
+                        <span className="font-mono text-muted text-2xs w-6 shrink-0">{i + 1}.</span>
                         <a
                           href={url}
                           target="_blank"
@@ -490,7 +491,7 @@ export default function AdminCrawlerPage() {
                     {queueData.discovered_files.map((df, idx) => (
                       <div key={idx} className="rounded-lg border border-border/80 bg-surface p-3">
                         <p className="font-medium text-heading truncate">{df.source_url || df.filename}</p>
-                        <p className="text-[11px] text-muted">
+                        <p className="text-2xs text-muted">
                           {formatDateTime(new Date(df.created_at * 1000).toISOString())} • {df.total} bài viết tìm thấy
                         </p>
                       </div>
@@ -515,6 +516,7 @@ export default function AdminCrawlerPage() {
                   disabled={isLoadingSessions}
                   className="h-8 w-8 text-muted hover:text-heading"
                   title="Làm mới lịch sử"
+                  aria-label="Làm mới lịch sử"
                 >
                   <RotateCw className={`h-3.5 w-3.5 transition-transform duration-500 hover:rotate-180 ${isLoadingSessions ? "animate-spin" : ""}`} />
                 </Button>

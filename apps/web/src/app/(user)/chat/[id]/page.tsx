@@ -104,7 +104,7 @@ export default function ChatDetailPage({ params }: ChatDetailPageProps) {
                 {/* Citations badges for assistant */}
                 {msg.citations && msg.citations.length > 0 && (
                   <div className="border-t border-border/50 pt-2">
-                    <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-brand-primary">
+                    <p className="mb-1.5 flex items-center gap-1 text-2xs font-semibold text-brand-primary">
                       <BookOpen className="h-3 w-3" />
                       <span>Tài liệu đối chứng đã tham chiếu:</span>
                     </p>
@@ -123,7 +123,7 @@ export default function ChatDetailPage({ params }: ChatDetailPageProps) {
                 {/* Assistant actions: Copy, Feedback */}
                 {msg.role === "assistant" && msg.content && (
                   <div className="flex items-center justify-between border-t border-border/30 pt-1">
-                    <span className="text-[10px] text-muted">{msg.created_at}</span>
+                    <span className="text-3xs text-muted">{msg.created_at}</span>
                     <FeedbackButtons messageId={msg.id} contentToCopy={msg.content} />
                   </div>
                 )}

@@ -34,7 +34,7 @@ export function CitationBadge({ citation, index }: CitationBadgeProps) {
       >
         <Badge
           variant="outline"
-          className="h-5 border-brand-primary/30 bg-brand-primary/5 px-1.5 text-[11px] font-normal text-brand-primary transition-colors group-hover:bg-brand-primary/10"
+          className="h-5 border-brand-primary/30 bg-brand-primary/5 px-1.5 text-2xs font-normal text-brand-primary transition-colors group-hover:bg-brand-primary/10"
         >
           <BookOpen className="mr-0.5 h-3 w-3 text-brand-primary" />
           <span>[{index + 1}]</span>
@@ -55,7 +55,7 @@ export function CitationBadge({ citation, index }: CitationBadgeProps) {
 
           <div className="space-y-3 pt-2">
             <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-surface/50 p-3.5 text-xs leading-relaxed text-body">
-              <p className="mb-1 text-[11px] font-semibold tracking-wider text-brand-primary text-heading uppercase">
+              <p className="mb-1 text-2xs font-semibold tracking-wider text-brand-primary text-heading uppercase">
                 Đoạn trích dẫn liên quan:
               </p>
               &ldquo;{citation.snippet}&rdquo;

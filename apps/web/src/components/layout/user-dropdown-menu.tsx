@@ -64,7 +64,7 @@ export function UserDropdownMenu({ context = "user" }: UserDropdownMenuProps) {
           <span className="max-w-[140px] truncate text-xs font-semibold leading-tight text-heading">
             {displayName}
           </span>
-          <span className="text-[11px] leading-tight text-muted">
+          <span className="text-2xs leading-tight text-muted">
             {user?.role ? ROLE_LABELS[user.role] : "Người dùng"}
           </span>
         </div>

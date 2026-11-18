@@ -273,25 +273,25 @@ export default function AdminDocumentsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-border/60 bg-slate-50/40 hover:bg-slate-50/40">
-                  <TableHead className="w-14 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="w-14 text-center text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     STT
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Tên tài liệu
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Danh mục
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Kích thước
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Số chunks
                   </TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <TableHead className="text-2xs font-semibold uppercase tracking-wider text-slate-400">
                     Trạng thái
                   </TableHead>
-                  <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-400 pr-5">
+                  <TableHead className="text-right text-2xs font-semibold uppercase tracking-wider text-slate-400 pr-5">
                     Thao tác
                   </TableHead>
                 </TableRow>
@@ -377,6 +377,7 @@ export default function AdminDocumentsPage() {
                               onClick={() => setEditTarget(doc)}
                               className="h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                               title="Chỉnh sửa tài liệu"
+                              aria-label="Chỉnh sửa tài liệu"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -388,6 +389,7 @@ export default function AdminDocumentsPage() {
                               onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
                               className="h-7 w-7 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600"
                               title="Xóa tài liệu"
+                              aria-label="Xóa tài liệu"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

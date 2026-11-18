@@ -238,7 +238,7 @@ export default function AdminDashboardPage() {
                     <Icon className="h-4.5 w-4.5" />
                   </div>
                   <span
-                    className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-tight ${item.badgeStyle}`}
+                    className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-semibold tracking-tight ${item.badgeStyle}`}
                   >
                     <ArrowUpRight className="h-3 w-3" />
                     {item.subBadge}
@@ -303,7 +303,7 @@ export default function AdminDashboardPage() {
                             ></span>
                           </span>
                         </div>
-                        <p className="text-[11px] text-muted">
+                        <p className="text-2xs text-muted">
                           {svc.details || meta.role}
                         </p>
                       </div>
@@ -311,7 +311,7 @@ export default function AdminDashboardPage() {
 
                     <div className="flex items-center gap-2">
                       {latency && (
-                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-mono text-slate-600">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-2xs font-mono text-slate-600">
                           {latency}
                         </span>
                       )}
@@ -319,8 +319,8 @@ export default function AdminDashboardPage() {
                         variant="outline"
                         className={
                           isHealthy
-                            ? "border-emerald-200/80 bg-emerald-50/80 text-[11px] font-medium text-emerald-700"
-                            : "border-warning/30 bg-warning/10 text-[11px] font-medium text-warning"
+                            ? "border-emerald-200/80 bg-emerald-50/80 text-2xs font-medium text-emerald-700"
+                            : "border-warning/30 bg-warning/10 text-2xs font-medium text-warning"
                         }
                       >
                         {isHealthy ? "Sẵn sàng" : "Cần kiểm tra"}
@@ -377,7 +377,7 @@ export default function AdminDashboardPage() {
                         >
                           {doc.title}
                         </Link>
-                        <p className="text-[11px] text-muted">
+                        <p className="text-2xs text-muted">
                           {chunks} chunks • {formatBytes(doc.file_size)} •{" "}
                           <span className="text-slate-700 font-medium">
                             {typeof doc.category === "object" && doc.category !== null

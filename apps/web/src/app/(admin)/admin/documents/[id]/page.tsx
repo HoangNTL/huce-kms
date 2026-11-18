@@ -350,7 +350,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                     <>
                       <FileText className="mx-auto mb-2 h-8 w-8 text-muted/60" />
                       <p className="font-medium">Tài liệu này chưa có phân đoạn nào được trích xuất.</p>
-                      <p className="mt-1 text-[11px]">Trạng thái tài liệu: {doc.status}</p>
+                      <p className="mt-1 text-2xs">Trạng thái tài liệu: {doc.status}</p>
                     </>
                   )}
                 </div>

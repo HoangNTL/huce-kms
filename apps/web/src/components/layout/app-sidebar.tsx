@@ -93,7 +93,7 @@ export function AppSidebar() {
         /* --- ADMIN MODE NAVIGATION --- */
         <div className="flex flex-1 flex-col overflow-hidden">
           {!isCollapsed && (
-            <div className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            <div className="px-4 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted">
               Quản trị hệ thống
             </div>
           )}
@@ -136,6 +136,7 @@ export function AppSidebar() {
                 <Button
                   size="icon"
                   title="Đoạn chat mới"
+                  aria-label="Đoạn chat mới"
                   className="h-10 w-10 rounded-xl bg-brand-primary text-white shadow-xs hover:bg-brand-primary-hover"
                 >
                   <Plus className="h-5 w-5" />

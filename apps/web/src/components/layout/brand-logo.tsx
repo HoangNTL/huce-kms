@@ -80,7 +80,7 @@ export function BrandLogo({
           <span className="truncate font-heading text-sm font-bold tracking-tight text-heading">
             HUCE KMS
           </span>
-          <span className="rounded-md bg-brand-primary-subtle px-1.5 py-0.5 text-[10px] font-semibold text-brand-primary">
+          <span className="rounded-md bg-brand-primary-subtle px-1.5 py-0.5 text-3xs font-semibold text-brand-primary">
             {badgeText}
           </span>
         </div>
