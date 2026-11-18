@@ -91,6 +91,7 @@ class Settings(BaseSettings):
         "drive.google.com",
         "docs.google.com",
         "googleusercontent.com",
+        "usercontent.google.com",
     ]
     CRAWLER_REQUEST_TIMEOUT: int = 15
     CRAWLER_MAX_RETRIES: int = 2

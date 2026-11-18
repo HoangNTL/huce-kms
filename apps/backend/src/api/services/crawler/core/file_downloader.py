@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -80,8 +81,10 @@ class FileDownloader:
         media_type: str,
         max_size_mb: int = 20,
         preferred_name: str | None = None,
+        url_validator: Callable[[str], bool] | None = None,
+        max_redirects: int = 5,
     ) -> DownloadedFileResult:
-        """Stream download a file, enforcing size limits and calculating SHA-256 on the fly."""
+        """Stream download a file, enforcing size limits and calculating SHA-256 on the fly with safe redirect checks."""
         dest_dir.mkdir(parents=True, exist_ok=True)
         max_bytes = max_size_mb * 1024 * 1024
 
@@ -104,11 +107,43 @@ class FileDownloader:
         mime_type = "application/octet-stream"
 
         try:
-            async with client.stream("GET", url, follow_redirects=True) as response:
+            current_url = url
+            stream_ctx = None
+            response = None
+
+            for _ in range(max_redirects + 1):
+                if url_validator:
+                    url_validator(current_url)
+
+                stream_ctx = client.stream("GET", current_url, follow_redirects=False)
+                response = await stream_ctx.__aenter__()
+
+                if response.is_redirect:
+                    location = response.headers.get("Location")
+                    await stream_ctx.__aexit__(None, None, None)
+                    stream_ctx = None
+                    if not location:
+                        raise MediaDownloadException(
+                            f"Redirect {response.status_code} missing Location header.",
+                            url=current_url,
+                        )
+                    current_url = str(response.url.join(location))
+                    continue
+
+                break
+            else:
+                if stream_ctx:
+                    await stream_ctx.__aexit__(None, None, None)
+                raise MediaDownloadException(
+                    f"Too many redirects (exceeded limit of {max_redirects}) for '{url}'.",
+                    url=url,
+                )
+
+            try:
                 if response.status_code >= 400:
                     raise MediaDownloadException(
                         f"HTTP {response.status_code} while downloading file.",
-                        url=url,
+                        url=current_url,
                     )
 
                 mime_type = response.headers.get("Content-Type", mime_type).split(";")[0].strip()
@@ -122,7 +157,7 @@ class FileDownloader:
                             if not cls.validate_signature(chunk[:32], media_type):
                                 raise MediaDownloadException(
                                     f"File signature mismatch for expected type '{media_type}'.",
-                                    url=url,
+                                    url=current_url,
                                 )
                             header_checked = True
 
@@ -130,11 +165,14 @@ class FileDownloader:
                         if total_bytes > max_bytes:
                             raise MediaDownloadException(
                                 f"File size exceeds maximum allowed limit ({max_size_mb}MB).",
-                                url=url,
+                                url=current_url,
                             )
 
                         hasher.update(chunk)
                         f.write(chunk)
+            finally:
+                if stream_ctx:
+                    await stream_ctx.__aexit__(None, None, None)
 
             file_hash = f"sha256:{hasher.hexdigest()}"
             return DownloadedFileResult(

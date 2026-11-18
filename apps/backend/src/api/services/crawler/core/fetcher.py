@@ -108,36 +108,52 @@ class HttpFetcher:
         }
 
         last_error: Exception | None = None
+        max_redirects = 5
 
         for attempt in range(self.max_retries + 1):
             try:
                 client_kwargs = {
                     "timeout": httpx.Timeout(self.timeout),
-                    "follow_redirects": True,
+                    "follow_redirects": False,
                     "headers": headers,
                 }
                 if self.transport is not None:
                     client_kwargs["transport"] = self.transport
 
                 async with httpx.AsyncClient(**client_kwargs) as client:
-                    response = await client.get(url)
+                    current_url = url
+                    for redirect_count in range(max_redirects + 1):
+                        # Pre-request SSRF validation on initial URL and every redirect target
+                        self.validate_url(current_url)
+                        response = await client.get(current_url)
 
-                    # Validate all intermediate and final redirect URLs
-                    for hist in response.history:
-                        self.validate_url(str(hist.url))
-                    self.validate_url(str(response.url))
+                        if response.is_redirect:
+                            location = response.headers.get("Location")
+                            if not location:
+                                raise FetchException(
+                                    f"Redirect {response.status_code} missing Location header.",
+                                    url=current_url,
+                                    status_code=response.status_code,
+                                )
+                            current_url = str(response.url.join(location))
+                            continue
 
-                    if response.status_code >= 400:
-                        raise FetchException(
-                            f"HTTP {response.status_code} error while fetching page.",
-                            url=url,
+                        if response.status_code >= 400:
+                            raise FetchException(
+                                f"HTTP {response.status_code} error while fetching page.",
+                                url=current_url,
+                                status_code=response.status_code,
+                            )
+
+                        return FetchResponse(
                             status_code=response.status_code,
+                            html=response.text,
+                            final_url=str(response.url),
                         )
 
-                    return FetchResponse(
-                        status_code=response.status_code,
-                        html=response.text,
-                        final_url=str(response.url),
+                    raise FetchException(
+                        f"Too many redirects (exceeded limit of {max_redirects}) for '{url}'.",
+                        url=url,
                     )
 
             except (SSRFBlockedException, FetchException):

@@ -117,3 +117,7 @@ class BatchCrawlResult(BaseModel):
     duration_seconds: float = 0.0
     results: list[CrawlResult] = Field(default_factory=list)
 
+    @property
+    def total(self) -> int:
+        return self.total_urls
+

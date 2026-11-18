@@ -30,6 +30,10 @@ class Document(Base, TimestampMixin, SoftDeleteMixin):
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
 
+    # Source tracking: URL (if crawled) and source type ("upload" | "crawler")
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, index=True)
+    source_type: Mapped[str] = mapped_column(String(50), default="upload", nullable=False, index=True)
+
     # Ingestion Status: "uploaded" | "pending" | "processing" | "indexed" | "failed"
     status: Mapped[str] = mapped_column(String(20), default="uploaded", nullable=False, index=True)
 

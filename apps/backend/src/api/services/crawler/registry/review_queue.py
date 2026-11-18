@@ -7,6 +7,7 @@ from typing import Any
 from api.core.config import settings
 from api.services.crawler.discovery.schemas import DiscoveryResult
 from api.services.crawler.registry.schemas import ApprovedQueue
+from api.services.crawler.utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,7 @@ class ReviewQueueManager:
             filename = f"discovered_{ts}.json"
 
         target_path = self.queue_dir / filename
-        with open(target_path, "w", encoding="utf-8") as f:
-            f.write(result.model_dump_json(indent=2))
+        atomic_write_text(target_path, result.model_dump_json(indent=2))
 
         logger.info(f"Saved {result.total_discovered} discovered items to: {target_path}")
         return target_path
@@ -68,9 +68,7 @@ class ReviewQueueManager:
         )
 
         out_path = output_file or (self.queue_dir / "approved.json")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(queue.model_dump_json(indent=2))
+        atomic_write_text(out_path, queue.model_dump_json(indent=2))
 
         logger.info(f"Approved {len(final_urls)} URLs written to: {out_path}")
         return out_path
@@ -88,3 +86,27 @@ class ReviewQueueManager:
                 return [str(u) for u in data["urls"]]
 
         raise ValueError(f"Invalid approved file format in: {approved_file}")
+
+    def clear_approved_queue(self, output_file: Path | None = None) -> Path:
+        """Clear all approved URLs from approved.json."""
+        queue = ApprovedQueue(total_urls=0, urls=[])
+        out_path = output_file or (self.queue_dir / "approved.json")
+        atomic_write_text(out_path, queue.model_dump_json(indent=2))
+        logger.info(f"Cleared approved queue at: {out_path}")
+        return out_path
+
+    def remove_approved_url(self, url: str, output_file: Path | None = None) -> list[str]:
+        """Remove a single URL from approved queue."""
+        out_path = output_file or (self.queue_dir / "approved.json")
+        if not out_path.exists():
+            return []
+        try:
+            current_urls = self.load_approved_urls(out_path)
+        except Exception:
+            current_urls = []
+        updated_urls = [u for u in current_urls if u != url]
+        queue = ApprovedQueue(total_urls=len(updated_urls), urls=updated_urls)
+        atomic_write_text(out_path, queue.model_dump_json(indent=2))
+        logger.info(f"Removed '{url}' from approved queue. Remaining: {len(updated_urls)}")
+        return updated_urls
+

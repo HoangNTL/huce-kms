@@ -1,10 +1,10 @@
 import hashlib
 import logging
-import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from api.core.config import settings
+from api.core.database import uuid7
 from api.models.document import Document
 from api.repositories.category import CategoryRepository
 from api.repositories.document import DocumentRepository
@@ -114,7 +114,7 @@ class CrawlIngestionAdapter:
         actual_creator_id = created_by_id or uploader_id
         file_hash = self.compute_sha256(file_bytes)
 
-        # Check duplicate
+        # 1. Check duplicate by file content hash
         existing = await self.document_repo.get_by_file_hash(file_hash)
         if existing:
             logger.info("Document already exists (hash=%s, id=%s), skipping.", file_hash, existing.id)
@@ -126,8 +126,25 @@ class CrawlIngestionAdapter:
                 source_url=source_url,
                 status="skipped",
                 chunks_count=getattr(existing, "chunk_count", 0),
-                error="Already exists in system",
+                error="Already exists in system (content hash match)",
             )
+
+        # 2. Check duplicate by source URL and document identity
+        if source_url:
+            existing_by_url = await self.document_repo.get_by_source_url(source_url)
+            for d in existing_by_url:
+                if d.file_type == file_type and (d.file_name == file_name or d.title == title):
+                    logger.info("Document from source_url '%s' already exists (id=%s), skipping.", source_url, d.id)
+                    return IngestItemResult(
+                        document_id=d.id,
+                        title=title,
+                        file_name=file_name,
+                        file_type=file_type,
+                        source_url=source_url,
+                        status="skipped",
+                        chunks_count=getattr(d, "chunk_count", 0),
+                        error="Already exists in system (source URL match)",
+                    )
 
         if auto_publish:
             # Full RAG Ingestion Pipeline
@@ -137,6 +154,8 @@ class CrawlIngestionAdapter:
                 title=title,
                 category_id=category_id,
                 created_by_id=actual_creator_id,
+                source_url=source_url,
+                source_type="crawler",
             )
             return IngestItemResult(
                 document_id=doc_resp.id,
@@ -148,20 +167,36 @@ class CrawlIngestionAdapter:
                 chunks_count=doc_resp.chunk_count,
             )
         else:
-            # Staging / Draft Mode (Save record & physical file, do NOT embed or push to Qdrant)
+            # Staging / Draft Mode (Save record & file via StorageService, do NOT embed or push to Qdrant)
             clean_file_name = Path(file_name).name or "document"
-            settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-            unique_file_name = f"{uuid.uuid4().hex[:12]}_{clean_file_name}"
-            saved_file_path = settings.UPLOAD_DIR / unique_file_name
-            saved_file_path.write_bytes(file_bytes)
+            suffix = Path(file_name).suffix.lower()
+            if not suffix:
+                suffix = f".{file_type}" if file_type else ".txt"
+
+            content_type_map = {
+                ".pdf": "application/pdf",
+                ".txt": "text/plain; charset=utf-8",
+                ".md": "text/markdown; charset=utf-8",
+            }
+            content_type = content_type_map.get(suffix, "application/octet-stream")
+            now_utc = datetime.now(timezone.utc)
+            object_key = f"documents/{now_utc.strftime('%Y/%m')}/{uuid7()}{suffix}"
+
+            saved_file_key = await self.document_service.storage_service.upload_file(
+                file_bytes=file_bytes,
+                object_name=object_key,
+                content_type=content_type,
+            )
 
             doc = Document(
                 title=title,
                 file_name=clean_file_name,
-                file_path=str(saved_file_path),
+                file_path=saved_file_key,
                 file_size=len(file_bytes),
                 file_type=file_type,
                 file_hash=file_hash,
+                source_url=source_url,
+                source_type="crawler",
                 status="uploaded",
                 category_id=category_id,
                 created_by_id=actual_creator_id,

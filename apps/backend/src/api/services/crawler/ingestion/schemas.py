@@ -37,3 +37,11 @@ class IngestSummaryResponse(BaseModel):
     skipped: int
     failed: int
     items: list[IngestItemResult] = Field(default_factory=list)
+
+    @property
+    def total_succeeded(self) -> int:
+        return self.successful
+
+    @property
+    def total_failed(self) -> int:
+        return self.failed

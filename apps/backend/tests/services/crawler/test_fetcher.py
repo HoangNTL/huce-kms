@@ -55,3 +55,61 @@ class TestHttpFetcher(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(FetchException):
             await fetcher.fetch_html("https://huce.edu.vn/missing")
+
+    async def test_redirect_to_private_ip_blocked_before_execution(self):
+        called_urls = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            called_urls.append(str(request.url))
+            if str(request.url) == "https://huce.edu.vn/redirect-trap":
+                return httpx.Response(302, headers={"Location": "http://127.0.0.1:8000/secret"}, request=request)
+            return httpx.Response(200, text="Secret data", request=request)
+
+        fetcher = HttpFetcher(
+            allowed_domains=["huce.edu.vn"],
+            transport=httpx.MockTransport(handler),
+            check_dns=False,
+        )
+
+        with self.assertRaises(SSRFBlockedException):
+            await fetcher.fetch_html("https://huce.edu.vn/redirect-trap")
+
+        # Crucial security check: 127.0.0.1 must NEVER have been requested!
+        self.assertEqual(called_urls, ["https://huce.edu.vn/redirect-trap"])
+
+    async def test_redirect_to_disallowed_domain_blocked(self):
+        called_urls = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            called_urls.append(str(request.url))
+            return httpx.Response(302, headers={"Location": "https://attacker.com/pwn"}, request=request)
+
+        fetcher = HttpFetcher(
+            allowed_domains=["huce.edu.vn"],
+            transport=httpx.MockTransport(handler),
+            check_dns=False,
+        )
+
+        with self.assertRaises(SSRFBlockedException):
+            await fetcher.fetch_html("https://huce.edu.vn/jump")
+
+        self.assertEqual(called_urls, ["https://huce.edu.vn/jump"])
+
+    async def test_safe_redirect_succeeds(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if str(request.url) == "https://huce.edu.vn/old-page":
+                return httpx.Response(301, headers={"Location": "https://daotao.huce.edu.vn/new-page"}, request=request)
+            if str(request.url) == "https://daotao.huce.edu.vn/new-page":
+                return httpx.Response(200, html="<html><body>Final page</body></html>", request=request)
+            return httpx.Response(404, request=request)
+
+        fetcher = HttpFetcher(
+            allowed_domains=["huce.edu.vn"],
+            transport=httpx.MockTransport(handler),
+            check_dns=False,
+        )
+
+        res = await fetcher.fetch_html("https://huce.edu.vn/old-page")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Final page", res.html)
+        self.assertEqual(res.final_url, "https://daotao.huce.edu.vn/new-page")

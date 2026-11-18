@@ -41,6 +41,8 @@ class DocumentResponse(DocumentBase):
     file_size: int
     file_type: str
     file_hash: str
+    source_url: str | None = Field(default=None, description="Original web URL if ingested via crawler")
+    source_type: str = Field(default="upload", description="Source of the document: upload or crawler")
     status: DocumentStatus
     created_by_id: UUID | None = Field(default=None, description="User who uploaded/created document")
     total_pages: int

@@ -38,7 +38,7 @@ export const documentService = {
         file_hash: doc.file_hash ? String(doc.file_hash) : undefined,
         chunk_count: Number(doc.chunk_count ?? 0),
         total_pages: Number(doc.total_pages ?? 0),
-        category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : "Chung",
+        category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : undefined,
         category_id: doc.category_id ? String(doc.category_id) : undefined,
         status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
         download_url: doc.download_url ? String(doc.download_url) : undefined,
@@ -79,7 +79,7 @@ export const documentService = {
       file_hash: doc.file_hash ? String(doc.file_hash) : undefined,
       chunk_count: Number(doc.chunk_count ?? 0),
       total_pages: Number(doc.total_pages ?? 0),
-      category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : "Chung",
+      category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : undefined,
       category_id: doc.category_id ? String(doc.category_id) : undefined,
       status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
       download_url: doc.download_url ? String(doc.download_url) : undefined,
@@ -124,5 +124,9 @@ export const documentService = {
 
   async getDocumentDownloadUrl(id: string | number): Promise<{ download_url: string }> {
     return apiClient.get<{ download_url: string }>(`/documents/${id}/download-url`)
+  },
+
+  async processDocument(id: string | number): Promise<DocumentDetail> {
+    return apiClient.post<DocumentDetail>(`/documents/${id}/process`)
   },
 }

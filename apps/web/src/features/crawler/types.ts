@@ -110,3 +110,27 @@ export interface CrawlSessionSummary {
   succeeded: number
   failed: number
 }
+
+export interface StartQueuePayload {
+  auto_ingest?: boolean
+  auto_publish?: boolean
+  category_id?: string
+  max_concurrency?: number
+  clear_queue?: boolean
+}
+
+export interface StartQueueResult {
+  session_id: string
+  total: number
+  successful: number
+  failed: number
+  duration_seconds: number
+  ingest_summary?: {
+    total_pages: number
+    total_documents: number
+    successful: number
+    skipped: number
+    failed: number
+  }
+}
+

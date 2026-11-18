@@ -87,7 +87,6 @@ class CrawlerCoreEngine:
             headers = {"User-Agent": self.fetcher.user_agent}
             client_kwargs = {
                 "timeout": httpx.Timeout(self.fetcher.timeout),
-                "follow_redirects": True,
                 "headers": headers,
             }
             if self.fetcher.transport is not None:
@@ -102,6 +101,7 @@ class CrawlerCoreEngine:
                             url=link.url,
                             dest_dir=pdfs_dir,
                             media_type="pdf",
+                            url_validator=self.fetcher.validate_url,
                         )
                         crawled_pdfs.append(
                             CrawledMediaItem(
@@ -142,6 +142,7 @@ class CrawlerCoreEngine:
                             url=img_link.url,
                             dest_dir=images_dir,
                             media_type="image",
+                            url_validator=self.fetcher.validate_url,
                         )
                         crawled_images.append(
                             CrawledMediaItem(
@@ -263,6 +264,19 @@ class CrawlerCoreEngine:
         start_time = time.perf_counter()
         active_session_id = session_id or datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
 
+        # Initial in-progress session record
+        initial_session_info = {
+            "session_id": active_session_id,
+            "status": "in_progress",
+            "started_at": started_at,
+            "completed_at": None,
+            "duration_seconds": 0.0,
+            "total_urls": len(urls),
+            "successful": 0,
+            "failed": 0,
+        }
+        self.storage.save_session(active_session_id, initial_session_info, [])
+
         semaphore = asyncio.Semaphore(max_concurrency)
 
         async def _crawl_single(target_url: str) -> CrawlResult:
@@ -297,6 +311,7 @@ class CrawlerCoreEngine:
 
         session_info = {
             "session_id": active_session_id,
+            "status": "completed",
             "started_at": started_at,
             "completed_at": completed_at,
             "duration_seconds": duration_seconds,

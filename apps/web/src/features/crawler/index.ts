@@ -1,2 +1,6 @@
 export * from "./types"
 export * from "./services/crawler-service"
+export * from "./components/direct-crawl-tab"
+export * from "./components/discovery-tab"
+export * from "./components/queue-tab"
+export * from "./components/sessions-tab"

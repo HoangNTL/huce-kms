@@ -15,6 +15,8 @@ from api.schemas.crawler import (
     CrawlDirectRequest,
     DiscoverRequest,
     IngestSessionRequest,
+    RemoveQueueItemRequest,
+    StartQueueRequest,
 )
 from api.services.crawler.core.engine import CrawlerCoreEngine
 from api.services.ai.managers.embedding_manager import EmbeddingManager
@@ -50,6 +52,9 @@ def get_crawler_adapter(
     )
 
 
+CrawlerAdapterDep = Annotated[CrawlIngestionAdapter, Depends(get_crawler_adapter)]
+
+
 @router.post(
     "/crawl",
     response_model=BaseResponse[dict[str, Any]],
@@ -59,7 +64,7 @@ def get_crawler_adapter(
 async def crawl_direct_url(
     payload: CrawlDirectRequest,
     admin: AdminUserDep,
-    db: DatabaseDep,
+    adapter: CrawlerAdapterDep,
 ) -> BaseResponse[dict[str, Any]]:
     engine = CrawlerCoreEngine(base_data_dir=Path(settings.CRAWLER_DATA_DIR))
     try:
@@ -89,7 +94,6 @@ async def crawl_direct_url(
     }
 
     if payload.auto_ingest and result.artifact_dir:
-        adapter = get_crawler_adapter(db)
         ingest_results = await adapter.ingest_page(
             page_dir=result.artifact_dir,
             category_id=payload.category_id,
@@ -232,6 +236,98 @@ async def approve_queue_urls(
 
 
 @router.post(
+    "/queue/start",
+    response_model=BaseResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Start crawling all approved URLs in the queue (Admin only)",
+)
+async def start_crawling_queue(
+    payload: StartQueueRequest,
+    admin: AdminUserDep,
+    adapter: CrawlerAdapterDep,
+) -> BaseResponse[dict[str, Any]]:
+    queue_manager = ReviewQueueManager()
+    approved_file = queue_manager.queue_dir / "approved.json"
+    if not approved_file.exists():
+        raise BadRequestException(message="Hàng đợi duyệt hiện đang trống.")
+
+    urls = queue_manager.load_approved_urls(approved_file)
+    if not urls:
+        raise BadRequestException(message="Hàng đợi duyệt hiện không có liên kết nào để thu thập.")
+
+    engine = CrawlerCoreEngine(base_data_dir=Path(settings.CRAWLER_DATA_DIR))
+    batch_result = await engine.crawl_batch(
+        urls=urls,
+        max_concurrency=payload.max_concurrency,
+    )
+
+    ingest_summary_data = None
+    if payload.auto_ingest:
+        session_dir = Path(settings.CRAWLER_DATA_DIR) / "sessions" / batch_result.session_id
+        if session_dir.exists():
+            ingest_summary = await adapter.ingest_session(
+                session_dir=session_dir,
+                category_id=payload.category_id,
+                auto_publish=payload.auto_publish,
+                created_by_id=admin.id,
+            )
+            ingest_summary_data = ingest_summary.model_dump()
+
+    if payload.clear_queue:
+        queue_manager.clear_approved_queue(approved_file)
+
+    return BaseResponse(
+        code="QUEUE_CRAWL_COMPLETED",
+        message=f"Đã hoàn thành thu thập {batch_result.successful}/{batch_result.total_urls} liên kết.",
+        data={
+            "session_id": batch_result.session_id,
+            "total": batch_result.total_urls,
+            "total_urls": batch_result.total_urls,
+            "successful": batch_result.successful,
+            "failed": batch_result.failed,
+            "duration_seconds": batch_result.duration_seconds,
+            "ingest_summary": ingest_summary_data,
+        },
+    )
+
+
+@router.delete(
+    "/queue",
+    response_model=BaseResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Clear all URLs from approved queue (Admin only)",
+)
+async def clear_crawl_queue(admin: AdminUserDep) -> BaseResponse[dict[str, Any]]:
+    queue_manager = ReviewQueueManager()
+    queue_manager.clear_approved_queue()
+    return BaseResponse(
+        code="QUEUE_CLEARED",
+        message="Đã xóa toàn bộ liên kết trong hàng đợi duyệt.",
+        data={"approved_total": 0, "approved_urls": []},
+    )
+
+
+@router.delete(
+    "/queue/item",
+    response_model=BaseResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Remove a specific URL from approved queue (Admin only)",
+)
+async def remove_queue_item(
+    url: str,
+    admin: AdminUserDep,
+) -> BaseResponse[dict[str, Any]]:
+    queue_manager = ReviewQueueManager()
+    updated = queue_manager.remove_approved_url(url)
+    return BaseResponse(
+        code="QUEUE_ITEM_REMOVED",
+        message="Đã xóa liên kết khỏi hàng đợi duyệt.",
+        data={"approved_total": len(updated), "approved_urls": updated},
+    )
+
+
+
+@router.post(
     "/ingest",
     response_model=BaseResponse[dict[str, Any]],
     status_code=status.HTTP_200_OK,
@@ -240,9 +336,8 @@ async def approve_queue_urls(
 async def ingest_crawl_artifacts(
     payload: IngestSessionRequest,
     admin: AdminUserDep,
-    db: DatabaseDep,
+    adapter: CrawlerAdapterDep,
 ) -> BaseResponse[dict[str, Any]]:
-    adapter = get_crawler_adapter(db)
     base_crawled = Path(settings.CRAWLER_DATA_DIR)
 
     if payload.page_hash:
@@ -275,7 +370,7 @@ async def ingest_crawl_artifacts(
         )
         return BaseResponse(
             code="INGEST_SUCCESS",
-            message=f"Session ingestion completed: {summary.total_succeeded} succeeded, {summary.total_failed} failed.",
+            message=f"Session ingestion completed: {summary.successful} succeeded, {summary.failed} failed.",
             data=summary.model_dump(),
         )
 

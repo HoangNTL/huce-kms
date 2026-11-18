@@ -184,6 +184,24 @@ async def update_document(
     )
 
 
+@router.post(
+    "/{document_id}/process",
+    response_model=BaseResponse[DocumentResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Process and index an uploaded draft document into RAG (Admin only)",
+)
+async def process_document(
+    document_id: Annotated[UUID, Path(description="Document unique identifier")],
+    admin_user: AdminUserDep,
+    service: DocumentServiceDep,
+):
+    processed = await service.process_document(document_id)
+    return BaseResponse(
+        message="Document processed and indexed into RAG successfully.",
+        data=processed,
+    )
+
+
 @router.get(
     "/{document_id}/download-url",
     response_model=BaseResponse[DocumentDownloadUrlResponse],

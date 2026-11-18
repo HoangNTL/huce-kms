@@ -322,9 +322,9 @@ export default function AdminDocumentsPage() {
                     const categoryName =
                       typeof doc.category === "object" && doc.category?.name
                         ? doc.category.name
-                        : typeof doc.category === "string"
+                        : typeof doc.category === "string" && doc.category.trim()
                           ? doc.category
-                          : "Chung"
+                          : null
 
                     return (
                       <TableRow
@@ -349,7 +349,11 @@ export default function AdminDocumentsPage() {
 
                         {/* Column Danh mục */}
                         <TableCell className="text-xs font-medium text-slate-600">
-                          {categoryName}
+                          {categoryName ? (
+                            categoryName
+                          ) : (
+                            <span className="text-muted font-normal italic">Chưa phân loại</span>
+                          )}
                         </TableCell>
 
                         {/* Column Kích thước */}

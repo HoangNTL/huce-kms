@@ -25,3 +25,16 @@ class IngestSessionRequest(BaseModel):
     page_hash: str | None = Field(default=None, description="Specific page hash to ingest")
     category_id: UUID | None = Field(default=None, description="Category ID to assign")
     auto_publish: bool = Field(default=False, description="Index vectors into Qdrant immediately")
+
+
+class StartQueueRequest(BaseModel):
+    auto_ingest: bool = Field(default=True, description="Whether to automatically ingest crawled pages into document repository")
+    auto_publish: bool = Field(default=False, description="Whether to immediately vectorize and publish to RAG without review")
+    category_id: UUID | None = Field(default=None, description="Optional category ID for ingested documents")
+    max_concurrency: int = Field(default=2, ge=1, le=5, description="Concurrency level for crawling")
+    clear_queue: bool = Field(default=True, description="Whether to clear the approved queue after completion")
+
+
+class RemoveQueueItemRequest(BaseModel):
+    url: str = Field(..., description="Target URL to remove from approved queue")
+

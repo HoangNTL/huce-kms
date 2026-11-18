@@ -7,6 +7,8 @@ import type {
   QueueResponse,
   ApproveQueuePayload,
   IngestPayload,
+  StartQueuePayload,
+  StartQueueResult,
 } from "../types"
 
 export const crawlerService = {
@@ -33,6 +35,20 @@ export const crawlerService = {
     )
   },
 
+  async startQueue(payload: StartQueuePayload = {}): Promise<StartQueueResult> {
+    return apiClient.post<StartQueueResult>("/crawler/queue/start", payload)
+  },
+
+  async clearQueue(): Promise<{ approved_total: number; approved_urls: string[] }> {
+    return apiClient.delete<{ approved_total: number; approved_urls: string[] }>("/crawler/queue")
+  },
+
+  async removeQueueItem(url: string): Promise<{ approved_total: number; approved_urls: string[] }> {
+    return apiClient.delete<{ approved_total: number; approved_urls: string[] }>("/crawler/queue/item", {
+      params: { url },
+    })
+  },
+
   async ingest(payload: IngestPayload): Promise<Record<string, unknown>> {
     return apiClient.post<Record<string, unknown>>("/crawler/ingest", payload)
   },
@@ -41,3 +57,4 @@ export const crawlerService = {
     return apiClient.get<Array<Record<string, unknown>>>("/crawler/sessions")
   },
 }
+

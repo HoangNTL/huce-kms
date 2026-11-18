@@ -30,6 +30,17 @@ class DocumentRepository(BaseRepository[Document]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_source_url(self, source_url: str) -> list[Document]:
+        """Fetch active documents crawled from a specific source URL."""
+        stmt = (
+            select(Document)
+            .options(selectinload(Document.category))
+            .where(Document.source_url == source_url, Document.deleted_at.is_(None))
+            .order_by(Document.created_at.desc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_with_category(self, document_id: UUID, include_deleted: bool = False) -> Document | None:
         stmt = (
             select(Document)

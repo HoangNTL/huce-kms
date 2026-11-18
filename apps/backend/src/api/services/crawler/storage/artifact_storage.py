@@ -6,6 +6,7 @@ from typing import Any
 from api.core.config import settings
 from api.services.crawler.deduplicator import Deduplicator
 from api.services.crawler.schemas import PageMetadata
+from api.services.crawler.utils import atomic_write_text
 
 logger = logging.getLogger("huce_kms.crawler.storage")
 
@@ -42,15 +43,15 @@ class ArtifactStorage:
 
         # 1. Write content.md
         content_path = page_dir / "content.md"
-        content_path.write_text(markdown_content, encoding="utf-8")
+        atomic_write_text(content_path, markdown_content)
 
         # 2. Write raw.html
         raw_path = page_dir / "raw.html"
-        raw_path.write_text(raw_html, encoding="utf-8")
+        atomic_write_text(raw_path, raw_html)
 
         # 3. Write metadata.json
         meta_path = page_dir / "metadata.json"
-        meta_path.write_text(metadata.model_dump_json(indent=2), encoding="utf-8")
+        atomic_write_text(meta_path, metadata.model_dump_json(indent=2))
 
         logger.info("Saved page artifacts to: %s", page_dir)
         return page_dir
@@ -66,9 +67,9 @@ class ArtifactStorage:
         session_dir.mkdir(parents=True, exist_ok=True)
 
         session_file = session_dir / "session.json"
-        session_file.write_text(json.dumps(session_info, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_text(session_file, json.dumps(session_info, indent=2, ensure_ascii=False))
 
         results_file = session_dir / "results.json"
-        results_file.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_text(results_file, json.dumps(results, indent=2, ensure_ascii=False))
 
         return session_dir

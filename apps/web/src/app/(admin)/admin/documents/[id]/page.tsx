@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, FileText, Search, Pencil, AlertCircle, ExternalLink } from "lucide-react"
+import { ArrowLeft, FileText, Search, Pencil, AlertCircle, ExternalLink, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -135,6 +135,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   const [categories, setCategories] = React.useState<CategoryItem[]>([])
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(true)
+  const [isProcessing, setIsProcessing] = React.useState(false)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
@@ -147,21 +148,39 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
       .catch(() => setCategories([]))
   }, [])
 
-  React.useEffect(() => {
-    documentService
-      .getDocument(resolvedParams.id)
-      .then((data) => {
-        setDoc(data)
+  const loadDocument = React.useCallback(async () => {
+    try {
+      const data = await documentService.getDocument(resolvedParams.id)
+      setDoc(data)
+    } catch (err) {
+      toast.error("Không thể tải thông tin tài liệu", {
+        description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
       })
-      .catch((err) => {
-        toast.error("Không thể tải thông tin tài liệu", {
-          description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
-        })
-      })
-      .finally(() => {
-        setIsLoading(false)
-      })
+    } finally {
+      setIsLoading(false)
+    }
   }, [resolvedParams.id])
+
+  React.useEffect(() => {
+    loadDocument()
+  }, [loadDocument])
+
+  const handleProcessDocument = async () => {
+    setIsProcessing(true)
+    try {
+      await documentService.processDocument(resolvedParams.id)
+      await loadDocument()
+      toast.success("Lập chỉ mục tài liệu thành công", {
+        description: "Đã phân đoạn và nạp dữ liệu vào hệ thống hỏi đáp AI.",
+      })
+    } catch (err) {
+      toast.error("Lập chỉ mục thất bại", {
+        description: err instanceof Error ? err.message : "Vui lòng thử lại sau.",
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   if (isLoading) {
     return <DocumentDetailSkeleton />
@@ -186,9 +205,9 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   const categoryName =
     typeof doc.category === "object" && doc.category?.name
       ? doc.category.name
-      : typeof doc.category === "string"
+      : typeof doc.category === "string" && doc.category.trim()
         ? doc.category
-        : "Chung"
+        : "Chưa phân loại"
 
   const fileSizeMB = doc.file_size
     ? (doc.file_size / 1024 / 1024).toFixed(2)
@@ -212,6 +231,16 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
           {doc.title}
         </h1>
         <div className="flex items-center gap-2 shrink-0">
+          {doc.status === "UPLOADED" && (
+            <Button
+              onClick={handleProcessDocument}
+              loading={isProcessing}
+              className="h-8 shrink-0 gap-1.5 rounded-lg text-xs font-medium"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Lập chỉ mục</span>
+            </Button>
+          )}
           {doc.download_url && (
             <a
               href={doc.download_url}
@@ -347,11 +376,26 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                       </div>
                     </div>
                   ) : (
-                    <>
-                      <FileText className="mx-auto mb-2 h-8 w-8 text-muted/60" />
-                      <p className="font-medium">Tài liệu này chưa có phân đoạn nào được trích xuất.</p>
-                      <p className="mt-1 text-2xs">Trạng thái tài liệu: {doc.status}</p>
-                    </>
+                    <div className="flex flex-col items-center justify-center p-8 text-center">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <p className="text-xs font-semibold text-heading">Tài liệu ở trạng thái bản nháp</p>
+                      <p className="mt-1 max-w-sm text-2xs text-muted leading-relaxed">
+                        Tài liệu đã được lưu trữ an toàn nhưng chưa được phân đoạn và lập chỉ mục tìm kiếm.
+                      </p>
+                      {doc.status === "UPLOADED" && (
+                        <Button
+                          size="sm"
+                          onClick={handleProcessDocument}
+                          loading={isProcessing}
+                          className="mt-4 h-8 gap-1.5 rounded-lg text-xs"
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                          <span>Lập chỉ mục tìm kiếm</span>
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               ) : filteredChunks.length === 0 ? (
