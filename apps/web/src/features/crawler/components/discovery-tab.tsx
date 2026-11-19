@@ -23,6 +23,29 @@ interface DiscoveryTabProps {
   onApproved?: () => void
 }
 
+function parseTitleAndDate(rawTitle?: string | null): { cleanTitle: string; dateStr: string | null } {
+  if (!rawTitle) return { cleanTitle: "—", dateStr: null }
+  const trimmed = rawTitle.trim()
+  const dateMatch = trimmed.match(/[-–—]?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})\s*$/)
+  if (dateMatch) {
+    const clean = trimmed.slice(0, dateMatch.index).trim().replace(/[-–—]\s*$/, "")
+    return {
+      cleanTitle: clean || trimmed,
+      dateStr: dateMatch[1],
+    }
+  }
+  return { cleanTitle: trimmed, dateStr: null }
+}
+
+function getUrlDomainAndPath(urlStr: string): { domain: string; path: string } {
+  try {
+    const u = new URL(urlStr)
+    return { domain: u.hostname, path: u.pathname }
+  } catch {
+    return { domain: "", path: urlStr }
+  }
+}
+
 export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
   const [discoveryUrl, setDiscoveryUrl] = React.useState("")
   const [maxItems, setMaxItems] = React.useState(30)
@@ -110,19 +133,19 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
     <div className="space-y-4">
       <Card className="border-border shadow-xs py-0 gap-0">
         <CardContent className="p-4 sm:p-5">
-          <form onSubmit={handleDiscovery} className="max-w-2xl flex flex-col gap-3 sm:flex-row sm:items-end">
+          <form onSubmit={handleDiscovery} className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
               <label className="text-xs font-medium text-heading">URL nguồn trang</label>
               <Input
                 placeholder="https://daotao.huce.edu.vn/thong-bao"
                 value={discoveryUrl}
                 onChange={(e) => setDiscoveryUrl(e.target.value)}
-                className="font-mono text-xs"
+                className="font-mono text-xs h-9"
                 disabled={isDiscovering}
               />
             </div>
-            <div className="w-28 space-y-1.5">
-              <label className="text-xs font-medium text-heading">Số lượng</label>
+            <div className="w-32 space-y-1.5 shrink-0">
+              <label className="text-xs font-medium text-heading">Số bài tối đa</label>
               <Input
                 type="number"
                 min={1}
@@ -142,7 +165,7 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
                     toast.warning("Số lượng tối đa là 200")
                   }
                 }}
-                className="text-xs"
+                className="text-xs h-9"
                 disabled={isDiscovering}
               />
             </div>
@@ -150,6 +173,7 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
               type="submit"
               loading={isDiscovering}
               loadingText="Đang quét liên kết..."
+              className="h-9 px-4 text-xs font-semibold bg-brand-primary text-white hover:bg-brand-primary-hover shadow-xs shrink-0"
             >
               Khám phá
             </Button>
@@ -164,8 +188,8 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
               <span className="text-sm font-semibold text-heading">
                 Liên kết tìm thấy
               </span>
-              <Badge variant="outline" className="border-emerald-500/30 bg-emerald-50 text-emerald-700 text-2xs">
-                {discoveryResult.total_discovered}
+              <Badge variant="outline" className="border-border bg-slate-100 text-slate-700 text-2xs font-semibold">
+                {discoveryResult.total_discovered} bài
               </Badge>
             </div>
             <Button
@@ -173,7 +197,7 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
               disabled={selectedUrls.size === 0 || isApproving}
               loading={isApproving}
               loadingText="Đang duyệt..."
-              className="bg-emerald-600 text-xs text-white hover:bg-emerald-700 h-8 px-3 rounded-lg font-medium"
+              className="bg-brand-primary text-xs text-white hover:bg-brand-primary-hover h-8 px-3.5 rounded-lg font-semibold shadow-xs"
             >
               Duyệt ({selectedUrls.size})
             </Button>
@@ -183,7 +207,7 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-border/60 bg-slate-50/40 hover:bg-slate-50/40">
-                    <TableHead className="w-12 text-center">
+                    <TableHead className="w-10 text-center pl-4">
                       <input
                         type="checkbox"
                         checked={
@@ -201,21 +225,20 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
                         title="Chọn tất cả"
                       />
                     </TableHead>
-                    <TableHead className="w-14 text-center text-2xs font-semibold uppercase tracking-wider text-slate-400">
-                      STT
-                    </TableHead>
-                    <TableHead className="w-1/2 text-2xs font-semibold uppercase tracking-wider text-slate-400">
+                    <TableHead className="w-auto text-2xs font-semibold uppercase tracking-wider text-slate-400">
                       Tiêu đề bài viết
                     </TableHead>
-                    <TableHead className="w-1/2 text-2xs font-semibold uppercase tracking-wider text-slate-400">
-                      Địa chỉ URL
+                    <TableHead className="w-28 text-right text-2xs font-semibold uppercase tracking-wider text-slate-400 pr-4">
+                      Ngày
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedDiscoveredItems.map((item, idx) => {
-                    const stt = (discoveryPage - 1) * discoveryPageSize + idx + 1
                     const isSelected = selectedUrls.has(item.url)
+                    const { cleanTitle, dateStr } = parseTitleAndDate(item.title)
+                    const { domain, path } = getUrlDomainAndPath(item.url)
+
                     return (
                       <TableRow
                         key={item.url || idx}
@@ -224,7 +247,7 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
                           isSelected && "bg-brand-primary/5"
                         )}
                       >
-                        <TableCell className="w-12 text-center">
+                        <TableCell className="w-10 text-center pl-4 py-2.5">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -232,23 +255,25 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
                             className="rounded border-border text-brand-primary cursor-pointer"
                           />
                         </TableCell>
-                        <TableCell className="w-14 text-center text-xs font-medium text-slate-500">
-                          {stt}
+                        <TableCell className="w-auto py-2.5">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-heading line-clamp-2">
+                              {cleanTitle}
+                            </span>
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 font-mono text-2xs text-muted hover:text-brand-primary truncate max-w-xl transition-colors"
+                              title={item.url}
+                            >
+                              <span className="truncate">{domain ? `${domain}${path}` : item.url}</span>
+                              <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                            </a>
+                          </div>
                         </TableCell>
-                        <TableCell className="w-1/2 text-xs font-medium text-heading">
-                          {item.title || "—"}
-                        </TableCell>
-                        <TableCell className="w-1/2 font-mono text-2xs text-muted">
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline hover:text-brand-primary break-all inline-flex items-center gap-1.5"
-                            title={item.url}
-                          >
-                            <span>{item.url}</span>
-                            <ExternalLink className="h-3 w-3 shrink-0 text-muted" />
-                          </a>
+                        <TableCell className="w-28 text-right font-mono text-2xs text-muted pr-4 whitespace-nowrap">
+                          {dateStr || "—"}
                         </TableCell>
                       </TableRow>
                     )
@@ -257,17 +282,19 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
               </Table>
             </div>
 
-            <DataTablePagination
-              currentPage={discoveryPage}
-              pageSize={discoveryPageSize}
-              totalItems={discoveryResult.items.length}
-              onPageChange={setDiscoveryPage}
-              onPageSizeChange={(newSize) => {
-                setDiscoveryPageSize(newSize)
-                setDiscoveryPage(1)
-              }}
-              pageSizeOptions={[10, 20, 50]}
-            />
+            {discoveryResult.items.length > discoveryPageSize && (
+              <DataTablePagination
+                currentPage={discoveryPage}
+                pageSize={discoveryPageSize}
+                totalItems={discoveryResult.items.length}
+                onPageChange={setDiscoveryPage}
+                onPageSizeChange={(newSize) => {
+                  setDiscoveryPageSize(newSize)
+                  setDiscoveryPage(1)
+                }}
+                pageSizeOptions={[10, 20, 50]}
+              />
+            )}
           </CardContent>
         </Card>
       )}

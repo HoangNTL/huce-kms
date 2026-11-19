@@ -35,11 +35,21 @@ class CrawlArtifactReader:
         if pdfs_dir.exists() and pdfs_dir.is_dir():
             pdf_files = sorted(list(pdfs_dir.glob("*.pdf")))
 
+        image_files: list[Path] = []
+        images_dir = page_dir / "images"
+        if images_dir.exists() and images_dir.is_dir():
+            image_files = sorted([
+                f
+                for f in images_dir.iterdir()
+                if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+            ])
+
         return IngestPagePayload(
             page_dir=page_dir,
             metadata=metadata,
             markdown_content=markdown_content,
             pdf_files=pdf_files,
+            image_files=image_files,
         )
 
     @classmethod

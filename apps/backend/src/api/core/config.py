@@ -88,6 +88,7 @@ class Settings(BaseSettings):
     CRAWLER_DATA_DIR: Path = BACKEND_DIR / "data" / "crawled"
     CRAWLER_ALLOWED_DOMAINS: list[str] = [
         "huce.edu.vn",
+        "google.com",
         "drive.google.com",
         "docs.google.com",
         "googleusercontent.com",

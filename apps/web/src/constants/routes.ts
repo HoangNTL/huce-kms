@@ -21,6 +21,7 @@ export const ROUTES = {
     DOCUMENT_DETAIL: (id: string) => `/admin/documents/${id}`,
     CATEGORIES: "/admin/categories",
     CRAWLER: "/admin/crawler",
+    CRAWLER_SESSION: (id: string) => `/admin/crawler/sessions/${id}`,
     PROFILE: "/admin/profile",
   },
 } as const

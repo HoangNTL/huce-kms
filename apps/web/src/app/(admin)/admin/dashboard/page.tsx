@@ -28,14 +28,7 @@ import {
   DocumentUploadModal,
 } from "@/features/documents"
 import { ROUTES } from "@/constants/routes"
-
-function formatBytes(bytes?: number): string {
-  if (!bytes || bytes <= 0) return "0 MB"
-  const k = 1024
-  const sizes = ["B", "KB", "MB", "GB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
-}
+import { formatBytes } from "@/lib/utils"
 
 function getServiceIcon(name: string) {
   const lower = name.toLowerCase()

@@ -1,9 +1,12 @@
 import hashlib
+import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
+from api.core.config import settings
 from api.core.database import uuid7
 from api.models.document import Document
 from api.repositories.category import CategoryRepository
@@ -38,6 +41,102 @@ class CrawlIngestionAdapter:
         hasher.update(data)
         return hasher.hexdigest()
 
+    @staticmethod
+    def is_meaningful_markdown(content: str, min_text_chars: int = 40) -> bool:
+        """
+        Check if markdown content contains substantive text beyond metadata header,
+        headings, dates, view counters, and download links.
+        """
+        if not content or not content.strip():
+            return False
+
+        # If it has OCR text section, it is substantive
+        if "## Nội dung trích xuất từ văn bản đính kèm" in content:
+            return True
+
+        # Remove header section (starts with # Title ... up to ---)
+        body = re.sub(
+            r"^#\s+[^\n]+\n+(?:- \*\*[^\n]+\n+)*---\s*",
+            "",
+            content.strip(),
+            flags=re.MULTILINE,
+        )
+
+        # Remove image tags: ![alt](url)
+        body = re.sub(r"!\[.*?\]\(.*?\)", "", body)
+
+        # Remove file/attachment links: [text](url)
+        body = re.sub(r"\[.*?\]\(.*?\)", "", body)
+
+        # Remove standalone URLs
+        body = re.sub(r"https?://\S+", "", body)
+
+        # Remove headings: #, ##, ###, ####, #####, ######
+        body = re.sub(r"^\s*#{1,6}\s+.*$", "", body, flags=re.MULTILINE)
+
+        # Remove date and view count patterns
+        body = re.sub(r"\d{1,2}[/-]\d{1,2}[/-]\d{4}", "", body)
+        body = re.sub(r"(?:Lượt\s+xem|Xem|Ngày\s+đăng)\s*:\s*\d+", "", body, flags=re.IGNORECASE)
+
+        # Remove markdown horizontal rules & formatting chars
+        body = re.sub(r"[-*_~`#|]", " ", body)
+
+        # Clean remaining whitespace and check meaningful text length
+        cleaned_text = re.sub(r"\s+", " ", body).strip()
+        return len(cleaned_text) >= min_text_chars
+
+    async def enrich_markdown_with_ocr(
+        self,
+        markdown_content: str,
+        image_files: list[Path],
+    ) -> str:
+        """If markdown has image attachments and is not yet enriched, transcribe them via Gemini Vision OCR."""
+        if not image_files or not settings.GEMINI_API_KEY:
+            return markdown_content
+
+        if "## Nội dung trích xuất từ văn bản đính kèm" in markdown_content:
+            return markdown_content
+
+        try:
+            from api.services.rag.parser import DocumentParser
+
+            mime_types = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+            }
+
+            ocr_sections = []
+            for img_path in image_files:
+                try:
+                    if not img_path.exists() or img_path.stat().st_size < 15 * 1024:
+                        continue
+                    img_bytes = img_path.read_bytes()
+                    mime = mime_types.get(img_path.suffix.lower(), "image/png")
+                    extracted_text = await DocumentParser.ocr_image_bytes(
+                        image_bytes=img_bytes,
+                        mime_type=mime,
+                        context_label=f"image attachment '{img_path.name}'",
+                    )
+                    if extracted_text and len(extracted_text.strip()) > 40:
+                        ocr_sections.append(
+                            f"### Văn bản trích xuất từ ảnh ({img_path.name}):\n\n{extracted_text.strip()}"
+                        )
+                except Exception as e:
+                    logger.warning("Failed to OCR image attachment '%s': %s", img_path.name, e)
+
+            if ocr_sections:
+                return (
+                    f"{markdown_content.strip()}\n\n---\n\n## Nội dung trích xuất từ văn bản đính kèm (Ảnh scan)\n\n"
+                    + "\n\n".join(ocr_sections)
+                    + "\n"
+                )
+        except Exception as e:
+            logger.warning("OCR enrichment during ingestion failed: %s", e)
+
+        return markdown_content
+
     async def ingest_page(
         self,
         page_dir: Path,
@@ -51,9 +150,17 @@ class CrawlIngestionAdapter:
         payload = CrawlArtifactReader.read_page(page_dir)
         results: list[IngestItemResult] = []
 
-        # 1. Process Markdown Document
-        if payload.markdown_content.strip():
-            md_bytes = payload.markdown_content.encode("utf-8")
+        # 1. Enrich Markdown with OCR from scanned images if present
+        enriched_markdown = payload.markdown_content
+        if payload.image_files:
+            enriched_markdown = await self.enrich_markdown_with_ocr(
+                markdown_content=payload.markdown_content,
+                image_files=payload.image_files,
+            )
+
+        # 2. Process Markdown Document (filter out empty/stub wrapper pages)
+        if self.is_meaningful_markdown(enriched_markdown):
+            md_bytes = enriched_markdown.encode("utf-8")
             md_name = f"{page_dir.name}_content.md"
             md_title = payload.metadata.content.title.strip() or f"Bài viết {payload.metadata.source.url}"
             md_result = await self._ingest_file(
@@ -67,8 +174,24 @@ class CrawlIngestionAdapter:
                 auto_publish=auto_publish,
             )
             results.append(md_result)
+        else:
+            logger.info(
+                "Skipping stub markdown for page '%s' (no substantive text content to index).",
+                page_dir.name,
+            )
+            results.append(
+                IngestItemResult(
+                    title=payload.metadata.content.title.strip() or f"Bài viết {payload.metadata.source.url}",
+                    file_name=f"{page_dir.name}_content.md",
+                    file_type="md",
+                    source_url=payload.metadata.source.url,
+                    status="skipped",
+                    chunks_count=0,
+                    error="Bỏ qua do file Markdown chỉ chứa thông tin vỏ bọc / link đính kèm (không có nội dung văn bản thực chất để lập chỉ mục).",
+                )
+            )
 
-        # 2. Process Attached PDFs
+        # 3. Process Attached PDFs
         for pdf_path in payload.pdf_files:
             try:
                 pdf_bytes = pdf_path.read_bytes()
@@ -96,6 +219,18 @@ class CrawlIngestionAdapter:
                         error=str(e),
                     )
                 )
+
+        # 3. Write ingestion record for inspection
+        ingestion_record_path = page_dir / "ingestion.json"
+        try:
+            with open(ingestion_record_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "ingested_at": datetime.now(timezone.utc).isoformat(),
+                    "category_id": str(category_id) if category_id else None,
+                    "documents": [r.model_dump(mode="json") for r in results],
+                }, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning("Could not write ingestion record for %s: %s", page_dir.name, e)
 
         return results
 

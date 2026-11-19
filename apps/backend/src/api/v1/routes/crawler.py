@@ -1,7 +1,9 @@
 import json
+import mimetypes
 from pathlib import Path
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import FileResponse
 
 from api.core.config import settings
 from api.core.dependencies import AdminUserDep, DatabaseDep
@@ -402,4 +404,156 @@ async def list_crawl_sessions(
         code="SESSIONS_LISTED",
         message=f"Retrieved {len(result)} crawl sessions.",
         data=result,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}",
+    response_model=BaseResponse[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Get detailed crawl session results and artifacts for inspection (Admin only)",
+)
+async def get_crawl_session_details(
+    session_id: str,
+    admin: AdminUserDep,
+) -> BaseResponse[dict[str, Any]]:
+    safe_session_id = Path(session_id).name
+    session_dir = Path(settings.CRAWLER_DATA_DIR) / "sessions" / safe_session_id
+    if not session_dir.exists():
+        raise EntityNotFoundException(message=f"Phiên thu thập '{safe_session_id}' không tồn tại.")
+
+    session_info_path = session_dir / "session.json"
+    results_path = session_dir / "results.json"
+
+    session_data: dict[str, Any] = {"session_id": safe_session_id}
+    if session_info_path.exists():
+        try:
+            with open(session_info_path, "r", encoding="utf-8") as f:
+                session_data = json.load(f)
+        except Exception as e:
+            pass
+
+    raw_items = []
+    if results_path.exists():
+        try:
+            with open(results_path, "r", encoding="utf-8") as f:
+                raw_items = json.load(f)
+        except Exception as e:
+            pass
+
+    detailed_items = []
+    for it in raw_items:
+        art_dir_str = it.get("artifact_dir")
+        art_dir = Path(art_dir_str) if art_dir_str else None
+
+        pdf_list = []
+        img_list = []
+        markdown_content = ""
+        is_meaningful = True
+        has_ocr = False
+        page_hash = art_dir.name if art_dir else ""
+        is_ingested = False
+        ingested_at = None
+
+        if art_dir and art_dir.exists():
+            ingest_file = art_dir / "ingestion.json"
+            if ingest_file.exists():
+                is_ingested = True
+                try:
+                    with open(ingest_file, "r", encoding="utf-8") as f:
+                        ing_data = json.load(f)
+                        ingested_at = ing_data.get("ingested_at")
+                except Exception:
+                    pass
+
+            pdfs_dir = art_dir / "pdfs"
+            if pdfs_dir.exists() and pdfs_dir.is_dir():
+                for p in sorted(pdfs_dir.glob("*")):
+                    if p.is_file():
+                        pdf_list.append({
+                            "name": p.name,
+                            "size": p.stat().st_size,
+                            "url": f"/api/v1/crawler/media/{page_hash}/pdfs/{p.name}",
+                        })
+
+            imgs_dir = art_dir / "images"
+            if imgs_dir.exists() and imgs_dir.is_dir():
+                for img in sorted(imgs_dir.glob("*")):
+                    if img.is_file():
+                        img_list.append({
+                            "name": img.name,
+                            "size": img.stat().st_size,
+                            "url": f"/api/v1/crawler/media/{page_hash}/images/{img.name}",
+                        })
+
+            content_file = art_dir / "content.md"
+            if content_file.exists():
+                try:
+                    markdown_content = content_file.read_text(encoding="utf-8")
+                except Exception:
+                    markdown_content = ""
+
+            is_meaningful = CrawlIngestionAdapter.is_meaningful_markdown(markdown_content)
+            has_ocr = "## Nội dung trích xuất từ văn bản đính kèm" in markdown_content
+
+        detailed_items.append({
+            "url": it.get("url", ""),
+            "title": it.get("title", ""),
+            "status": it.get("status", "unknown"),
+            "page_hash": page_hash,
+            "duration_seconds": it.get("duration_seconds", 0),
+            "pdf_count": len(pdf_list),
+            "image_count": len(img_list),
+            "pdfs": pdf_list,
+            "images": img_list,
+            "markdown_content": markdown_content,
+            "markdown_length": len(markdown_content),
+            "is_meaningful_markdown": is_meaningful,
+            "has_ocr": has_ocr,
+            "is_ingested": is_ingested,
+            "ingested_at": ingested_at,
+            "errors": it.get("errors", []),
+        })
+
+    return BaseResponse(
+        code="SESSION_DETAILS_FETCHED",
+        message=f"Chi tiết phiên thu thập {safe_session_id}",
+        data={
+            "session": session_data,
+            "items": detailed_items,
+        },
+    )
+
+
+@router.get(
+    "/media/{page_hash}/{media_type}/{filename}",
+    summary="Download or preview an artifact file (PDF, image) from a crawled page",
+)
+async def get_crawl_media_file(
+    page_hash: str,
+    media_type: str,
+    filename: str,
+):
+    safe_hash = Path(page_hash).name
+    safe_media = Path(media_type).name
+    safe_name = Path(filename).name
+
+    if safe_media not in ("pdfs", "images"):
+        raise BadRequestException(message="Danh mục media không hợp lệ.")
+
+    base_pages_dir = (Path(settings.CRAWLER_DATA_DIR) / "pages").resolve()
+    file_path = (base_pages_dir / safe_hash / safe_media / safe_name).resolve()
+
+    if not file_path.is_relative_to(base_pages_dir) or not file_path.exists() or not file_path.is_file():
+        raise EntityNotFoundException(message="Tệp media không tồn tại hoặc đã bị xóa.")
+
+    mime_type, _ = mimetypes.guess_type(str(file_path))
+    if not mime_type:
+        mime_type = "application/pdf" if safe_media == "pdfs" else "application/octet-stream"
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=mime_type,
+        filename=safe_name,
+        content_disposition_type="inline",
     )

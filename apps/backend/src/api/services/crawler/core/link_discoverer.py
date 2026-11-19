@@ -26,7 +26,10 @@ class LinkDiscoverer:
 
     PDF_EXT_RE = re.compile(r"\.pdf($|\?|#)", re.IGNORECASE)
     IMAGE_EXT_RE = re.compile(r"\.(png|jpg|jpeg|webp)($|\?|#)", re.IGNORECASE)
-    GDRIVE_FILE_RE = re.compile(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", re.IGNORECASE)
+    GDRIVE_FILE_RE = re.compile(
+        r"drive\.google\.com/(?:file/d/|open\?(?:[^&]+&)*id=|uc\?(?:[^&]+&)*id=)([a-zA-Z0-9_-]+)",
+        re.IGNORECASE,
+    )
 
     IGNORED_IMG_CLASSES = re.compile(r"(icon|avatar|logo|emoji|badge|rating)", re.IGNORECASE)
 

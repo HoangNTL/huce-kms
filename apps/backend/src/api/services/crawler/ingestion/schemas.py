@@ -13,6 +13,7 @@ class IngestPagePayload(BaseModel):
     metadata: PageMetadata
     markdown_content: str
     pdf_files: list[Path] = Field(default_factory=list)
+    image_files: list[Path] = Field(default_factory=list)
 
 
 class IngestItemResult(BaseModel):

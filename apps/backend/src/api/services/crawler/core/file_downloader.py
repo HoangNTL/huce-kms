@@ -148,18 +148,90 @@ class FileDownloader:
 
                 mime_type = response.headers.get("Content-Type", mime_type).split(";")[0].strip()
 
+                # Extract more descriptive filename from Content-Disposition if present
+                cd_header = response.headers.get("Content-Disposition", "")
+                if cd_header:
+                    fn_match = re.search(r"filename\*=UTF-8''([^;]+)", cd_header, re.IGNORECASE)
+                    if fn_match:
+                        extracted_fn = unquote(fn_match.group(1).strip("\"' "))
+                    else:
+                        fn_match2 = re.search(r'filename="?([^";]+)"?', cd_header, re.IGNORECASE)
+                        extracted_fn = unquote(fn_match2.group(1).strip("\"' ")) if fn_match2 else None
+
+                    if extracted_fn:
+                        better_name = cls.sanitize_filename(
+                            extracted_fn, default_stem=f"file_{media_type}", default_ext=default_ext
+                        )
+                        new_target = dest_dir / better_name
+                        if new_target != target_path:
+                            base_stem = new_target.stem
+                            base_suffix = new_target.suffix
+                            c = 1
+                            while new_target.exists():
+                                new_target = dest_dir / f"{base_stem}_{c}{base_suffix}"
+                                c += 1
+                            target_path = new_target
+
+                stream_iterator = response.aiter_bytes(chunk_size=8192)
+                first_chunk = None
+                async for chunk in stream_iterator:
+                    if chunk:
+                        first_chunk = chunk
+                        break
+
+                if not first_chunk:
+                    raise MediaDownloadException("Received empty file stream.", url=current_url)
+
+                # Handle Google Drive HTML virus scan warning / confirmation interstitial
+                if (
+                    media_type == "pdf"
+                    and (first_chunk.startswith(b"<!DOCTYPE") or first_chunk.startswith(b"<html"))
+                    and ("drive.google.com" in current_url or "googleusercontent.com" in current_url)
+                ):
+                    # Collect full interstitial to extract confirm token
+                    interstitial_bytes = first_chunk + await response.aread()
+                    html_text = interstitial_bytes.decode("utf-8", errors="ignore")
+                    confirm_match = re.search(r'confirm=([a-zA-Z0-9_-]+)', html_text) or re.search(
+                        r'name="confirm"\s+value="([a-zA-Z0-9_-]+)"', html_text
+                    )
+                    if confirm_match and "confirm=" not in current_url:
+                        confirm_token = confirm_match.group(1)
+                        sep = "&" if "?" in current_url else "?"
+                        confirm_url = f"{current_url}{sep}confirm={confirm_token}"
+                        logger.info("Found Google Drive download confirm token. Retrying with confirm token...")
+                        await stream_ctx.__aexit__(None, None, None)
+                        stream_ctx = None
+                        return await cls.download_file_stream(
+                            client=client,
+                            url=confirm_url,
+                            dest_dir=dest_dir,
+                            media_type=media_type,
+                            max_size_mb=max_size_mb,
+                            preferred_name=preferred_name,
+                            url_validator=url_validator,
+                            max_redirects=max_redirects,
+                        )
+
+                if not cls.validate_signature(first_chunk[:32], media_type):
+                    raise MediaDownloadException(
+                        f"File signature mismatch for expected type '{media_type}'.",
+                        url=current_url,
+                    )
+
+                total_bytes = len(first_chunk)
+                if total_bytes > max_bytes:
+                    raise MediaDownloadException(
+                        f"File size exceeds maximum allowed limit ({max_size_mb}MB).",
+                        url=current_url,
+                    )
+
+                hasher.update(first_chunk)
+
                 with open(target_path, "wb") as f:
-                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                    f.write(first_chunk)
+                    async for chunk in stream_iterator:
                         if not chunk:
                             continue
-
-                        if not header_checked:
-                            if not cls.validate_signature(chunk[:32], media_type):
-                                raise MediaDownloadException(
-                                    f"File signature mismatch for expected type '{media_type}'.",
-                                    url=current_url,
-                                )
-                            header_checked = True
 
                         total_bytes += len(chunk)
                         if total_bytes > max_bytes:

@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from api.core.config import settings
 from api.services.crawler.core.extractor import HtmlExtractor
 from api.services.crawler.core.fetcher import HttpFetcher
 from api.services.crawler.core.file_downloader import FileDownloader
@@ -101,6 +102,7 @@ class CrawlerCoreEngine:
                             url=link.url,
                             dest_dir=pdfs_dir,
                             media_type="pdf",
+                            preferred_name=link.title,
                             url_validator=self.fetcher.validate_url,
                         )
                         crawled_pdfs.append(
@@ -193,6 +195,33 @@ class CrawlerCoreEngine:
             for p in successful_pdf_items:
                 pdf_section.append(f"- [{p.file_name}](./{p.local_path})")
             markdown_content += "\n".join(pdf_section)
+
+        # 7.1. Enrich Markdown with OCR text from downloaded genuine images
+        successful_img_items = [img for img in crawled_images if img.status == "success"]
+        if successful_img_items and settings.GEMINI_API_KEY:
+            try:
+                from api.services.rag.parser import DocumentParser
+
+                ocr_sections = []
+                for img_item in successful_img_items:
+                    img_file = page_dir / img_item.local_path
+                    if img_file.exists() and img_file.stat().st_size >= 15 * 1024:
+                        extracted = await DocumentParser.ocr_image_bytes(
+                            image_bytes=img_file.read_bytes(),
+                            mime_type=img_item.mime_type or "image/png",
+                            context_label=f"crawled image '{img_item.file_name}'",
+                        )
+                        if extracted and len(extracted.strip()) > 40:
+                            ocr_sections.append(
+                                f"### Văn bản trích xuất từ ảnh ({img_item.file_name}):\n\n{extracted.strip()}"
+                            )
+                if ocr_sections:
+                    markdown_content += (
+                        "\n\n---\n\n## Nội dung trích xuất từ văn bản đính kèm (Ảnh scan)\n\n"
+                        + "\n\n".join(ocr_sections)
+                    )
+            except Exception as e:
+                logger.warning("Failed to perform OCR enrichment on crawled images: %s", e)
 
         content_hash = Deduplicator.compute_content_hash(markdown_content)
 

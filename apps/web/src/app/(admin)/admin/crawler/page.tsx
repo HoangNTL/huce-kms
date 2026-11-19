@@ -7,12 +7,21 @@ import {
   DiscoveryTab,
   QueueTab,
   SessionsTab,
+  crawlerService,
 } from "@/features/crawler"
 import { categoryService, type CategoryItem } from "@/features/categories"
 
 export default function AdminCrawlerPage() {
   const [activeTab, setActiveTab] = React.useState("direct")
   const [categories, setCategories] = React.useState<CategoryItem[]>([])
+  const [queueCount, setQueueCount] = React.useState<number>(0)
+
+  const refreshQueueCount = React.useCallback(() => {
+    crawlerService
+      .getQueue()
+      .then((q) => setQueueCount(q?.approved_total ?? q?.approved_urls?.length ?? 0))
+      .catch(() => {})
+  }, [])
 
   React.useEffect(() => {
     categoryService
@@ -23,12 +32,19 @@ export default function AdminCrawlerPage() {
       })
   }, [])
 
+  React.useEffect(() => {
+    refreshQueueCount()
+  }, [refreshQueueCount, activeTab])
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="font-heading text-lg font-bold tracking-tight text-heading">
           Thu thập dữ liệu
         </h1>
+        <p className="text-xs text-muted">
+          Bóc tách và đồng bộ tài liệu từ các cổng thông tin vào kho tri thức HUCE-KMS
+        </p>
       </div>
 
       <Tabs
@@ -51,9 +67,14 @@ export default function AdminCrawlerPage() {
           </TabsTrigger>
           <TabsTrigger
             value="queue"
-            className="text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold"
+            className="text-xs px-3 py-1 data-active:bg-background data-active:text-heading data-active:shadow-xs data-active:font-semibold flex items-center gap-1.5"
           >
-            Hàng đợi
+            <span>Hàng đợi</span>
+            {queueCount > 0 && (
+              <span className="rounded-full bg-brand-primary/10 text-brand-primary px-1.5 py-0.5 text-2xs font-semibold leading-none">
+                {queueCount}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger
             value="sessions"
@@ -68,13 +89,21 @@ export default function AdminCrawlerPage() {
         </TabsContent>
 
         <TabsContent value="discovery">
-          <DiscoveryTab onApproved={() => setActiveTab("queue")} />
+          <DiscoveryTab
+            onApproved={() => {
+              setActiveTab("queue")
+              refreshQueueCount()
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="queue">
           <QueueTab
             categories={categories}
-            onCompleted={() => setActiveTab("sessions")}
+            onCompleted={() => {
+              setActiveTab("sessions")
+              refreshQueueCount()
+            }}
           />
         </TabsContent>
 

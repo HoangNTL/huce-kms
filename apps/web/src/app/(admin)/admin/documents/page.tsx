@@ -50,6 +50,7 @@ import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
+import { formatBytes } from "@/lib/utils"
 
 const DOCUMENT_STATUS_OPTIONS: Record<string, string> = {
   ALL: "Tất cả trạng thái",
@@ -57,14 +58,6 @@ const DOCUMENT_STATUS_OPTIONS: Record<string, string> = {
   UPLOADED: "Bản nháp",
   PROCESSING: "Đang xử lý",
   FAILED: "Lỗi",
-}
-
-function formatBytes(bytes?: number): string {
-  if (!bytes || bytes <= 0) return "0 MB"
-  const k = 1024
-  const sizes = ["B", "KB", "MB", "GB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
 export default function AdminDocumentsPage() {

@@ -134,3 +134,34 @@ export interface StartQueueResult {
   }
 }
 
+export interface SessionDetailMedia {
+  name: string
+  size: number
+  url?: string
+}
+
+export interface SessionDetailItem {
+  url: string
+  title: string
+  status: string
+  page_hash?: string
+  duration_seconds?: number
+  pdf_count: number
+  image_count: number
+  pdfs: SessionDetailMedia[]
+  images: SessionDetailMedia[]
+  markdown_content?: string
+  markdown_length: number
+  is_meaningful_markdown: boolean
+  has_ocr: boolean
+  is_ingested?: boolean
+  ingested_at?: string | null
+  errors: string[]
+}
+
+export interface SessionDetailData {
+  session: Record<string, unknown>
+  items: SessionDetailItem[]
+}
+
+

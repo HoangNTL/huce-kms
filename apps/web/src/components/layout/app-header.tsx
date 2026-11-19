@@ -83,6 +83,20 @@ export function AppHeader() {
                       </BreadcrumbPage>
                     </BreadcrumbItem>
                   </>
+                ) : pathname.includes("/admin/crawler/sessions/") ? (
+                  <>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink render={<Link href={ROUTES.ADMIN.CRAWLER} />}>
+                        Thu thập dữ liệu
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium text-heading">
+                        Chi tiết phiên
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
                 ) : (
                   <BreadcrumbItem>
                     <BreadcrumbPage className="font-medium text-heading">

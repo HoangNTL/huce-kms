@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client"
+import { API_BASE_URL } from "@/config/env"
 import type {
   CrawlDirectPayload,
   CrawlDirectResult,
@@ -9,6 +10,7 @@ import type {
   IngestPayload,
   StartQueuePayload,
   StartQueueResult,
+  SessionDetailData,
 } from "../types"
 
 export const crawlerService = {
@@ -55,6 +57,18 @@ export const crawlerService = {
 
   async getSessions(): Promise<Array<Record<string, unknown>>> {
     return apiClient.get<Array<Record<string, unknown>>>("/crawler/sessions")
+  },
+
+  async getSessionDetails(sessionId: string): Promise<SessionDetailData> {
+    return apiClient.get<SessionDetailData>(`/crawler/sessions/${sessionId}`)
+  },
+
+  getMediaUrl(mediaPath?: string): string {
+    if (!mediaPath) return ""
+    if (mediaPath.startsWith("http")) return mediaPath
+    const base = API_BASE_URL.replace(/\/api\/v1\/?$/, "")
+    const normalized = mediaPath.startsWith("/") ? mediaPath : `/${mediaPath}`
+    return `${base}${normalized}`
   },
 }
 

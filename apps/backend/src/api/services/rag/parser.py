@@ -17,29 +17,32 @@ class DocumentParser:
     """Extracts text content and page metadata from supported document files."""
 
     @classmethod
-    async def _ocr_page_with_gemini(
+    async def ocr_image_bytes(
         cls,
-        page: pymupdf.Page,
-        client: genai.Client,
+        image_bytes: bytes,
+        mime_type: str = "image/png",
+        client: genai.Client | None = None,
         semaphore: asyncio.Semaphore | None = None,
+        context_label: str = "image",
     ) -> str:
-        """Render a PDF page to image and transcribe text using Gemini Vision."""
+        """Transcribe text from image bytes using Gemini Vision OCR."""
+        if not settings.GEMINI_API_KEY:
+            logger.warning("GEMINI_API_KEY is not configured; skipping OCR for %s.", context_label)
+            return ""
+
+        client = client or genai.Client(api_key=settings.GEMINI_API_KEY)
+
         async def _run_ocr() -> str:
             try:
-                # Offload CPU-heavy page rendering and PNG encoding to a worker thread
-                def _render_page_png() -> bytes:
-                    pix = page.get_pixmap(dpi=150)
-                    return pix.tobytes("png")
-
-                image_bytes = await asyncio.to_thread(_render_page_png)
-                part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+                part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
                 prompt = (
                     "Bạn là hệ thống trích xuất văn bản (OCR) chính xác cao cho tài liệu học thuật và văn bản hành chính Việt Nam.\n"
                     "Hãy đọc và trích xuất toàn bộ nội dung văn bản trên hình ảnh này.\n"
                     "Yêu cầu:\n"
                     "1. Giữ nguyên cấu trúc, tiêu đề, số thứ tự, số hiệu văn bản, các Điều/Khoản.\n"
                     "2. Nếu có bảng biểu, hãy chuyển đổi chính xác thành định dạng Markdown Table.\n"
-                    "3. Chỉ trả về nội dung văn bản trích xuất được, không kèm lời mở đầu, giải thích hay bình luận."
+                    "3. Nếu hình ảnh không chứa văn bản (ảnh phong cảnh, logo đơn thuần, ảnh sự kiện không có văn bản), chỉ trả về chuỗi rỗng, không giải thích hay bình luận.\n"
+                    "4. Chỉ trả về nội dung văn bản trích xuất được, không kèm lời mở đầu, giải thích hay bình luận."
                 )
 
                 max_retries = 2
@@ -51,36 +54,61 @@ class DocumentParser:
                         )
                         extracted = response.text.strip() if response.text else ""
                         logger.info(
-                            "Gemini OCR successfully processed page %d (%d characters extracted).",
-                            page.number + 1,
+                            "Gemini OCR successfully processed %s (%d characters extracted).",
+                            context_label,
                             len(extracted),
                         )
                         return extracted
                     except Exception as exc:
                         if attempt < max_retries - 1:
                             logger.warning(
-                                "Gemini OCR attempt %d failed on page %d: %s. Retrying in 1.5s...",
+                                "Gemini OCR attempt %d failed on %s: %s. Retrying in 1.5s...",
                                 attempt + 1,
-                                page.number + 1,
+                                context_label,
                                 exc,
                             )
                             await asyncio.sleep(1.5)
                         else:
                             logger.warning(
-                                "Gemini OCR failed on page %d after %d attempts: %s",
-                                page.number + 1,
+                                "Gemini OCR failed on %s after %d attempts: %s",
+                                context_label,
                                 max_retries,
                                 exc,
                             )
                             return ""
             except Exception as e:
-                logger.warning("Gemini OCR preparation failed on page %d: %s", page.number + 1, e)
+                logger.warning("Gemini OCR preparation failed on %s: %s", context_label, e)
                 return ""
 
         if semaphore:
             async with semaphore:
                 return await _run_ocr()
         return await _run_ocr()
+
+    @classmethod
+    async def _ocr_page_with_gemini(
+        cls,
+        page: pymupdf.Page,
+        client: genai.Client,
+        semaphore: asyncio.Semaphore | None = None,
+    ) -> str:
+        """Render a PDF page to image and transcribe text using Gemini Vision."""
+        try:
+            def _render_page_png() -> bytes:
+                pix = page.get_pixmap(dpi=150)
+                return pix.tobytes("png")
+
+            image_bytes = await asyncio.to_thread(_render_page_png)
+            return await cls.ocr_image_bytes(
+                image_bytes=image_bytes,
+                mime_type="image/png",
+                client=client,
+                semaphore=semaphore,
+                context_label=f"PDF page {page.number + 1}",
+            )
+        except Exception as e:
+            logger.warning("Gemini OCR rendering failed on page %d: %s", page.number + 1, e)
+            return ""
 
     @classmethod
     def _extract_page_text_with_tables(cls, page: pymupdf.Page) -> str:
