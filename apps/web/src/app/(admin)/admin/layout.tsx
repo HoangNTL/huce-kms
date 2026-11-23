@@ -2,11 +2,11 @@ import * as React from "react"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { AppHeader } from "@/components/layout/app-header"
 import { AuthGuard } from "@/components/layout/auth-guard"
-import { USER_ROLES } from "@/types/user"
+import { UserRole } from "@/types/user"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthGuard requiredRole={USER_ROLES.ADMIN}>
+    <AuthGuard requiredRole={UserRole.ADMIN}>
       <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">
         <AppHeader />
         <div className="flex flex-1 min-h-0 overflow-hidden">

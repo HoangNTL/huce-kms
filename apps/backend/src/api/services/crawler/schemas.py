@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
+from api.constants.enums import CrawlerMediaType, PageCrawlStatus
+
 
 class CrawledMediaItem(BaseModel):
     """Metadata for a downloaded PDF or image attachment."""
@@ -13,7 +15,7 @@ class CrawledMediaItem(BaseModel):
     file_size: int
     file_hash: str
     mime_type: str
-    media_type: Literal["pdf", "image"]
+    media_type: CrawlerMediaType
     status: Literal["success", "failed", "skipped"] = "success"
     error: str | None = None
 

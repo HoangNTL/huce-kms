@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
-
-UserRole = Literal["user", "admin"]
+from api.constants.enums import UserRole
 
 
 class UserBase(BaseModel):
@@ -23,8 +22,19 @@ class AdminUserCreate(UserBase):
     """Payload for Admin directly provisioning a user account."""
 
     password: str = Field(..., min_length=6, max_length=100, description="Password minimum 6 characters")
-    role: UserRole = Field(default="user", description="Account role: 'user' or 'admin'")
+    role: UserRole = Field(default=UserRole.USER, description="Account role: 1=user, 2=admin")
     is_active: bool = Field(default=True, description="Initial active status")
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def parse_role(cls, v: Any) -> UserRole:
+        if isinstance(v, UserRole):
+            return v
+        if isinstance(v, int):
+            return UserRole(v)
+        if isinstance(v, str):
+            return UserRole.from_str(v)
+        return UserRole.USER
 
 
 class ChangePasswordRequest(BaseModel):
@@ -48,7 +58,18 @@ class UserStatusUpdate(BaseModel):
 
 
 class UserRoleUpdate(BaseModel):
-    role: UserRole = Field(..., description="Account role: 'user' or 'admin'")
+    role: UserRole = Field(..., description="Account role: 1=user, 2=admin")
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def parse_role(cls, v: Any) -> UserRole:
+        if isinstance(v, UserRole):
+            return v
+        if isinstance(v, int):
+            return UserRole(v)
+        if isinstance(v, str):
+            return UserRole.from_str(v)
+        return UserRole.USER
 
 
 class UserResponse(UserBase):
@@ -60,6 +81,16 @@ class UserResponse(UserBase):
     deleted_at: datetime | None = Field(default=None, description="Soft-delete timestamp if deleted")
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def role_name(self) -> str:
+        return self.role.name_str if isinstance(self.role, UserRole) else UserRole(self.role).name_str
+
+    @computed_field
+    @property
+    def role_label(self) -> str:
+        return self.role.label if isinstance(self.role, UserRole) else UserRole(self.role).label
 
 
 class TokenResponse(BaseModel):

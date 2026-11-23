@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { ROUTES } from "@/constants/routes"
-import { USER_ROLES, ROLE_LABELS } from "@/types/user"
+import { ROLE_LABELS, isUserAdmin } from "@/types/user"
 
 export interface UserDropdownMenuProps {
   context?: "admin" | "user"
@@ -40,7 +40,7 @@ export function UserDropdownMenu({ context = "user" }: UserDropdownMenuProps) {
   const userInitials = (user?.username || (context === "admin" ? "AD" : "ND"))
     .slice(0, 2)
     .toUpperCase()
-  const isAdmin = user?.role === USER_ROLES.ADMIN
+  const isAdmin = isUserAdmin(user?.role)
 
   return (
     <DropdownMenu>

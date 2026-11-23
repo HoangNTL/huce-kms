@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.constants.enums import UserRole
 from api.models.user import User
 from api.repositories.base import BaseRepository
 
@@ -62,8 +63,16 @@ class UserRepository(BaseRepository[User]):
                 User.full_name.ilike(f"%{q}%"),
             )
             count_stmt = count_stmt.where(search_filter)
-        if role:
-            count_stmt = count_stmt.where(User.role == role)
+        if role is not None:
+            if isinstance(role, int):
+                count_stmt = count_stmt.where(User.role == role)
+            elif isinstance(role, str):
+                r = role.strip()
+                if r and r.lower() != "all":
+                    if r.isdigit():
+                        count_stmt = count_stmt.where(User.role == int(r))
+                    else:
+                        count_stmt = count_stmt.where(User.role == UserRole.from_str(r))
         if is_active is not None:
             count_stmt = count_stmt.where(User.is_active == is_active)
 
@@ -76,8 +85,16 @@ class UserRepository(BaseRepository[User]):
             data_stmt = data_stmt.where(User.deleted_at.is_(None))
         if q:
             data_stmt = data_stmt.where(search_filter)
-        if role:
-            data_stmt = data_stmt.where(User.role == role)
+        if role is not None:
+            if isinstance(role, int):
+                data_stmt = data_stmt.where(User.role == role)
+            elif isinstance(role, str):
+                r = role.strip()
+                if r and r.lower() != "all":
+                    if r.isdigit():
+                        data_stmt = data_stmt.where(User.role == int(r))
+                    else:
+                        data_stmt = data_stmt.where(User.role == UserRole.from_str(r))
         if is_active is not None:
             data_stmt = data_stmt.where(User.is_active == is_active)
 

@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from uuid import UUID
 
+from api.constants.enums import DocumentSourceType, DocumentStatus
 from api.core.config import settings
 from api.core.database import uuid7
 from api.core.exceptions import (
@@ -74,7 +75,7 @@ class DocumentService:
         chunk_strategy: str = "legal_structural",
         uploader_id: UUID | None = None,
         source_url: str | None = None,
-        source_type: str = "upload",
+        source_type: DocumentSourceType | str = DocumentSourceType.UPLOAD,
     ) -> DocumentResponse:
         """Validate, store, parse, embed and index an uploaded document into PostgreSQL and Qdrant."""
         actual_creator_id = created_by_id or uploader_id
@@ -134,8 +135,8 @@ class DocumentService:
             file_type=suffix.lstrip("."),
             file_hash=file_hash,
             source_url=source_url,
-            source_type=source_type,
-            status="pending",
+            source_type=source_type if isinstance(source_type, DocumentSourceType) else DocumentSourceType.from_str(source_type),
+            status=DocumentStatus.PENDING,
             category_id=category_id,
             created_by_id=actual_creator_id,
             total_pages=0,
@@ -170,7 +171,7 @@ class DocumentService:
         chunk_strategy: str = "legal_structural",
     ) -> Document:
         """Execute OCR/parsing, text cleaning, chunking, Gemini embedding, and Qdrant/PostgreSQL indexing."""
-        document.status = "processing"
+        document.status = DocumentStatus.PROCESSING
         await self.document_repo.update(document)
 
         try:
@@ -236,7 +237,7 @@ class DocumentService:
             await self.chunk_repo.create_bulk(db_chunks)
 
             # Step 7: Mark document as successfully indexed
-            document.status = "indexed"
+            document.status = DocumentStatus.INDEXED
             document.total_pages = total_pages
             document.chunk_count = len(chunks_with_id)
             document.error_message = None
@@ -258,7 +259,7 @@ class DocumentService:
             except Exception as qdrant_err:
                 logger.warning("Could not delete vector points for document id=%s: %s", document.id, qdrant_err)
 
-            document.status = "failed"
+            document.status = DocumentStatus.FAILED
             document.error_message = str(e)
             await self.document_repo.update(document)
             raise

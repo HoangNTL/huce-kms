@@ -2,15 +2,26 @@ import type { CategoryItem } from "@/features/categories"
 
 export type { CategoryItem }
 
-export type DocumentStatus =
-  | "pending"
-  | "processing"
-  | "indexed"
-  | "failed"
-  | "UPLOADED"
-  | "PROCESSING"
-  | "INDEXED"
-  | "FAILED"
+/**
+ * FSM Ingestion States - Aligned with Backend DocumentStatus (SmallInteger / IntEnum):
+ * 0 = UPLOADED, 1 = PENDING, 2 = PROCESSING, 3 = INDEXED, 4 = FAILED
+ */
+export enum DocumentStatus {
+  UPLOADED = 0,
+  PENDING = 1,
+  PROCESSING = 2,
+  INDEXED = 3,
+  FAILED = 4,
+}
+
+/**
+ * Document Origin - Aligned with Backend DocumentSourceType (SmallInteger / IntEnum):
+ * 1 = UPLOAD, 2 = CRAWLER
+ */
+export enum DocumentSourceType {
+  UPLOAD = 1,
+  CRAWLER = 2,
+}
 
 export interface DocumentMetadata {
   id: string
@@ -23,6 +34,10 @@ export interface DocumentMetadata {
   category?: string | CategoryItem | null
   category_id?: string | null
   status: DocumentStatus
+  status_name?: string
+  status_label?: string
+  source_type?: DocumentSourceType
+  source_type_name?: string
   chunk_count: number
   total_pages: number
   error_message?: string | null

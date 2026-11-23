@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
+from api.constants.enums import DocumentSourceType, DocumentStatus
 from api.core.config import settings
 from api.core.database import uuid7
 from api.models.document import Document
@@ -331,8 +332,8 @@ class CrawlIngestionAdapter:
                 file_type=file_type,
                 file_hash=file_hash,
                 source_url=source_url,
-                source_type="crawler",
-                status="uploaded",
+                source_type=DocumentSourceType.CRAWLER,
+                status=DocumentStatus.UPLOADED,
                 category_id=category_id,
                 created_by_id=actual_creator_id,
                 total_pages=1,

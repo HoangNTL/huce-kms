@@ -27,6 +27,7 @@ if str(src_dir) not in sys.path:
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from api.constants.enums import UserRole
 from api.core.database import async_session_factory
 from api.core.security import hash_password
 from api.models.category import Category
@@ -49,7 +50,7 @@ async def seed_users() -> None:
                 email="admin@huce.edu.vn",
                 full_name="HUCE KMS Administrator",
                 hashed_password=hash_password("AdminPassword2026@"),
-                role="admin",
+                role=UserRole.ADMIN,
                 is_active=True,
             )
             session.add(default_admin)
@@ -69,7 +70,7 @@ async def seed_users() -> None:
                 email="user@huce.edu.vn",
                 full_name="Standard User",
                 hashed_password=hash_password("UserPassword2026@"),
-                role="user",
+                role=UserRole.USER,
                 is_active=True,
             )
             session.add(default_user)

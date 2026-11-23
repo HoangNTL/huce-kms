@@ -1,25 +1,39 @@
 /**
  * User & Role Models - Aligned with Backend FastAPI / SQLAlchemy Models
+ * Role mapping: 1 = USER (Standard user), 2 = ADMIN (Administrator)
  */
 
-/**
- * Standard User Roles in HUCE KMS.
- * Using 'as const' object pattern for optimal TypeScript type inference,
- * full tree-shaking, and seamless backend JSON string compatibility.
- */
-export const USER_ROLES = {
-  ADMIN: "admin",
-  USER: "user",
-} as const
+export enum UserRole {
+  USER = 1,
+  ADMIN = 2,
+}
 
-export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
+export const USER_ROLE_CONFIG: Record<
+  UserRole,
+  { label: string; codeName: string; badgeVariant: "default" | "secondary" }
+> = {
+  [UserRole.USER]: {
+    label: "Người dùng",
+    codeName: "user",
+    badgeVariant: "secondary",
+  },
+  [UserRole.ADMIN]: {
+    label: "Quản trị viên",
+    codeName: "admin",
+    badgeVariant: "default",
+  },
+}
 
-/**
- * Vietnamese display labels for User Roles
- */
-export const ROLE_LABELS: Record<UserRole, string> = {
-  [USER_ROLES.ADMIN]: "Quản trị viên",
-  [USER_ROLES.USER]: "Người dùng",
+export const ROLE_LABELS: Record<string | number, string> = {
+  [UserRole.USER]: "Người dùng",
+  [UserRole.ADMIN]: "Quản trị viên",
+  user: "Người dùng",
+  admin: "Quản trị viên",
+}
+
+export const isUserAdmin = (role?: UserRole | number | string | null): boolean => {
+  if (role == null) return false
+  return role === UserRole.ADMIN || role === 2 || String(role).toLowerCase() === "admin"
 }
 
 export interface UserProfile {
@@ -28,6 +42,8 @@ export interface UserProfile {
   email: string
   full_name?: string | null
   role: UserRole
+  role_name?: string
+  role_label?: string
   is_active: boolean
   created_at?: string
   updated_at?: string

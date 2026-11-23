@@ -1,4 +1,5 @@
 from uuid import UUID
+from api.constants.enums import UserRole
 from api.core.exceptions import BadRequestException, ConflictException, EntityNotFoundException
 from api.core.security import hash_password
 from api.models.user import User
@@ -97,19 +98,25 @@ class UserService:
         updated_user = await self.user_repo.update(user)
         return UserResponse.model_validate(updated_user)
 
-    async def update_user_role(self, user_id: UUID, role: str, admin_id: UUID) -> UserResponse:
-        """Promote or demote user role ('user' or 'admin') (Admin only)."""
-        if user_id == admin_id and role != "admin":
-            raise BadRequestException(message="Admins cannot revoke their own admin privileges.")
+    async def update_user_role(self, user_id: UUID, role: UserRole | str | int, admin_id: UUID) -> UserResponse:
+        """Promote or demote user role (Admin only)."""
+        if isinstance(role, UserRole):
+            target_role = role
+        elif isinstance(role, int):
+            target_role = UserRole(role)
+        elif isinstance(role, str):
+            target_role = UserRole.from_str(role)
+        else:
+            raise BadRequestException(message="Invalid role specified.")
 
-        if role not in ("user", "admin"):
-            raise BadRequestException(message="Invalid role. Must be 'user' or 'admin'.")
+        if user_id == admin_id and target_role != UserRole.ADMIN:
+            raise BadRequestException(message="Admins cannot revoke their own admin privileges.")
 
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise EntityNotFoundException(entity_name="User", entity_id=user_id)
 
-        user.role = role
+        user.role = target_role
         # Revoke tokens to force re-login with new claims
         await self.refresh_token_repo.revoke_all_for_user(user_id)
 

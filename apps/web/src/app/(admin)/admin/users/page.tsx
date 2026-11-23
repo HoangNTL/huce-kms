@@ -40,12 +40,12 @@ import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { toast } from "@/components/ui/sonner"
 import { userService } from "@/features/users/services/user-service"
-import { USER_ROLES, ROLE_LABELS, type UserProfile, type UserRole } from "@/types/user"
+import { UserRole, ROLE_LABELS, isUserAdmin, type UserProfile } from "@/types/user"
 
 const ROLE_OPTIONS: Record<string, string> = {
   ALL: "Tất cả vai trò",
-  ADMIN: ROLE_LABELS[USER_ROLES.ADMIN],
-  USER: ROLE_LABELS[USER_ROLES.USER],
+  ADMIN: ROLE_LABELS[UserRole.ADMIN],
+  USER: ROLE_LABELS[UserRole.USER],
 }
 
 const STATUS_OPTIONS: Record<string, string> = {
@@ -85,7 +85,7 @@ export default function AdminUsersPage() {
             ...u,
             id: String(u.id),
             full_name: u.full_name || u.username,
-            role: (String(u.role || USER_ROLES.USER).toLowerCase() as UserRole),
+            role: isUserAdmin(u.role) ? UserRole.ADMIN : UserRole.USER,
             is_active: u.is_active ?? true,
           }))
           setUsers(mapped)
@@ -258,7 +258,7 @@ export default function AdminUsersPage() {
                 ) : (
                   users.map((user, idx) => {
                     const stt = (currentPage - 1) * pageSize + idx + 1
-                    const isAdmin = String(user.role).toLowerCase() === USER_ROLES.ADMIN
+                    const isAdmin = isUserAdmin(user.role)
                     const isActive = user.is_active ?? true
                     const fullName = user.full_name || user.username
 

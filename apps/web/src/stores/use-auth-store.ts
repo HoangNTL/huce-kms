@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { USER_ROLES, type UserProfile, type UserRole } from "@/types/user"
+import { UserRole, isUserAdmin, type UserProfile } from "@/types/user"
 import type { AuthTokens } from "@/features/auth/types"
 import { authService } from "@/features/auth/services/auth-service"
 import { tokenStorage } from "@/lib/token-storage"
@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const normalizedUser: UserProfile = {
       ...data.user,
       full_name: data.user.full_name || data.user.username,
-      role: (data.user.role || USER_ROLES.USER).toLowerCase() as UserRole,
+      role: isUserAdmin(data.user.role) ? UserRole.ADMIN : UserRole.USER,
       is_active: data.user.is_active ?? true,
     }
 
@@ -119,7 +119,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const normalizedUser: UserProfile = {
         ...user,
         full_name: user.full_name || user.username,
-        role: (user.role || USER_ROLES.USER).toLowerCase() as UserRole,
+        role: isUserAdmin(user.role) ? UserRole.ADMIN : UserRole.USER,
         is_active: user.is_active ?? true,
       }
       set({ user: normalizedUser, isAuthenticated: true, isLoading: false })

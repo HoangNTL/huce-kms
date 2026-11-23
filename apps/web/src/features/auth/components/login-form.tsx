@@ -13,7 +13,7 @@ import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
 import { authService } from "@/features/auth/services/auth-service"
 import { useAuthStore } from "@/stores/use-auth-store"
-import { USER_ROLES } from "@/types/user"
+import { isUserAdmin } from "@/types/user"
 
 const loginSchema = z.object({
   username: z.string().min(3, "Tên đăng nhập tối thiểu 3 ký tự"),
@@ -44,7 +44,6 @@ export function LoginForm() {
       const response = await authService.login(values)
       setAuth(response)
 
-      const role = String(response.user.role || "").toLowerCase()
       const displayName = response.user.full_name || response.user.username
 
       toast.success("Đăng nhập thành công!", {
@@ -54,7 +53,7 @@ export function LoginForm() {
       const from = searchParams.get("from")
       if (from && from.startsWith("/")) {
         router.push(from)
-      } else if (role === USER_ROLES.ADMIN) {
+      } else if (isUserAdmin(response.user.role)) {
         router.push(ROUTES.ADMIN.DASHBOARD)
       } else {
         router.push(ROUTES.USER.CHAT)

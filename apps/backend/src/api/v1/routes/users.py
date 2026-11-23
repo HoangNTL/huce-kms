@@ -104,7 +104,7 @@ async def get_user(
     current_user: CurrentUserDep,
     service: UserServiceDep,
 ):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if not current_user.is_admin and current_user.id != user_id:
         raise ForbiddenException(message="Access denied: You can only view your own account details.")
 
     user = await service.get_user_by_id(user_id)
@@ -126,7 +126,7 @@ async def update_user(
     current_user: CurrentUserDep,
     service: UserServiceDep,
 ):
-    if current_user.role != "admin" and current_user.id != user_id:
+    if not current_user.is_admin and current_user.id != user_id:
         raise ForbiddenException(message="Access denied: You can only update your own account.")
 
     updated_user = await service.update_user(user_id, payload)
@@ -178,6 +178,6 @@ async def update_user_role(
         admin_id=admin_user.id,
     )
     return BaseResponse(
-        message=f"User {user_id} role updated to '{payload.role}' successfully.",
+        message=f"User {user_id} role updated to '{updated_user.role_name}' successfully.",
         data=updated_user,
     )

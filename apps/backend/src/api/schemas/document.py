@@ -1,11 +1,10 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
+from api.constants.enums import DocumentSourceType, DocumentStatus
 from api.schemas.category import CategoryResponse
-
-DocumentStatus = Literal["uploaded", "pending", "processing", "indexed", "failed"]
 
 
 class DocumentChunkResponse(BaseModel):
@@ -42,8 +41,8 @@ class DocumentResponse(DocumentBase):
     file_type: str
     file_hash: str
     source_url: str | None = Field(default=None, description="Original web URL if ingested via crawler")
-    source_type: str = Field(default="upload", description="Source of the document: upload or crawler")
-    status: DocumentStatus
+    source_type: DocumentSourceType = Field(default=DocumentSourceType.UPLOAD, description="Source: 1=upload, 2=crawler")
+    status: DocumentStatus = Field(default=DocumentStatus.UPLOADED, description="Status: 0=uploaded, 1=pending, 2=processing, 3=indexed, 4=failed")
     created_by_id: UUID | None = Field(default=None, description="User who uploaded/created document")
     total_pages: int
     chunk_count: int
@@ -55,6 +54,43 @@ class DocumentResponse(DocumentBase):
     download_url: str | None = Field(default=None, description="Presigned download or view URL for the original document")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @computed_field
+    @property
+    def status_name(self) -> str:
+        return self.status.name_str if isinstance(self.status, DocumentStatus) else DocumentStatus(self.status).name_str
+
+    @computed_field
+    @property
+    def status_label(self) -> str:
+        return self.status.label if isinstance(self.status, DocumentStatus) else DocumentStatus(self.status).label
+
+    @computed_field
+    @property
+    def source_type_name(self) -> str:
+        return self.source_type.name_str if isinstance(self.source_type, DocumentSourceType) else DocumentSourceType(self.source_type).name_str
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def parse_status(cls, v: Any) -> DocumentStatus:
+        if isinstance(v, DocumentStatus):
+            return v
+        if isinstance(v, int):
+            return DocumentStatus(v)
+        if isinstance(v, str):
+            return DocumentStatus.from_str(v)
+        return DocumentStatus.UPLOADED
+
+    @field_validator("source_type", mode="before")
+    @classmethod
+    def parse_source_type(cls, v: Any) -> DocumentSourceType:
+        if isinstance(v, DocumentSourceType):
+            return v
+        if isinstance(v, int):
+            return DocumentSourceType(v)
+        if isinstance(v, str):
+            return DocumentSourceType.from_str(v)
+        return DocumentSourceType.UPLOAD
 
     @computed_field
     @property
@@ -74,12 +110,6 @@ class DocumentResponse(DocumentBase):
             return None
         return str(v)
 
-    @field_validator("status", mode="before")
-    @classmethod
-    def normalize_status(cls, v: Any) -> str:
-        if isinstance(v, str):
-            return v.lower().strip()
-        return v
 
 
 class DocumentDetailResponse(DocumentResponse):

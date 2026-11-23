@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api-client"
-import type { DocumentMetadata, DocumentDetail } from "../types"
+import { DocumentStatus, type DocumentMetadata, type DocumentDetail } from "../types"
 import type { PaginatedResponse, PaginationParams } from "@/types/api"
 
 export const documentService = {
@@ -12,7 +12,7 @@ export const documentService = {
       limit: pageSize,
       q: params?.search ? String(params.search) : undefined,
       category_id: params?.category_id ? String(params.category_id) : undefined,
-      status: params?.status && params.status !== "ALL" ? String(params.status).toLowerCase() : undefined,
+      status: params?.status != null && params.status !== "ALL" ? (typeof params.status === "number" ? params.status : String(params.status).toLowerCase()) : undefined,
     }
 
     interface BackendPaginatedResponse {
@@ -40,7 +40,9 @@ export const documentService = {
         total_pages: Number(doc.total_pages ?? 0),
         category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : undefined,
         category_id: doc.category_id ? String(doc.category_id) : undefined,
-        status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
+        status: typeof doc.status === "number" ? (doc.status as DocumentStatus) : DocumentStatus.UPLOADED,
+        status_name: doc.status_name ? String(doc.status_name) : undefined,
+        status_label: doc.status_label ? String(doc.status_label) : undefined,
         download_url: doc.download_url ? String(doc.download_url) : undefined,
         error_message: doc.error_message ? String(doc.error_message) : null,
         created_at: String(doc.created_at || ""),
@@ -81,7 +83,9 @@ export const documentService = {
       total_pages: Number(doc.total_pages ?? 0),
       category: categoryObj?.name ? categoryObj.name : typeof doc.category === "string" ? doc.category : undefined,
       category_id: doc.category_id ? String(doc.category_id) : undefined,
-      status: String(doc.status || "UPLOADED").toUpperCase() as DocumentMetadata["status"],
+      status: typeof doc.status === "number" ? (doc.status as DocumentStatus) : DocumentStatus.UPLOADED,
+      status_name: doc.status_name ? String(doc.status_name) : undefined,
+      status_label: doc.status_label ? String(doc.status_label) : undefined,
       download_url: doc.download_url ? String(doc.download_url) : undefined,
       error_message: doc.error_message ? String(doc.error_message) : null,
       created_at: String(doc.created_at || ""),

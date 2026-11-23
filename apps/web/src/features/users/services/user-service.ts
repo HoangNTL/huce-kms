@@ -1,5 +1,4 @@
 import { apiClient } from "@/lib/api-client"
-import { USER_ROLES } from "@/types/user"
 import type { UserProfile, UpdateUserStatusPayload, UpdateUserRolePayload } from "../types"
 import type { PaginatedResponse, PaginationParams } from "@/types/api"
 
@@ -17,8 +16,7 @@ export const userService = {
   },
 
   async updateRole(id: string | number, payload: UpdateUserRolePayload): Promise<UserProfile> {
-    const role = String(payload.role || USER_ROLES.USER).toLowerCase()
-    return apiClient.patch<UserProfile>(`/users/${id}/role`, { role })
+    return apiClient.patch<UserProfile>(`/users/${id}/role`, { role: payload.role })
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {

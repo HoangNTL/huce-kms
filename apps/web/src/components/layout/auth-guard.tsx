@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { ROUTES } from "@/constants/routes"
-import { USER_ROLES, type UserRole } from "@/types/user"
+import { UserRole, isUserAdmin } from "@/types/user"
 import { LoadingSpinner } from "@/components/shared/loading-spinner"
 
 interface AuthGuardProps {
@@ -32,7 +32,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
       return
     }
 
-    if (requiredRole === USER_ROLES.ADMIN && user?.role !== USER_ROLES.ADMIN) {
+    if (requiredRole === UserRole.ADMIN && !isUserAdmin(user?.role)) {
       router.replace(ROUTES.USER.CHAT)
     }
   }, [isInitialized, isAuthenticated, user, requiredRole, router, pathname])
@@ -54,7 +54,7 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
     return null
   }
 
-  if (requiredRole === USER_ROLES.ADMIN && user?.role !== USER_ROLES.ADMIN) {
+  if (requiredRole === UserRole.ADMIN && !isUserAdmin(user?.role)) {
     return null
   }
 

@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text, Uuid, text
+from sqlalchemy import BigInteger, ForeignKey, Integer, SmallInteger, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from api.constants.enums import DocumentSourceType, DocumentStatus
 from api.core.database import Base, SoftDeleteMixin, TimestampMixin, uuid7
 
 if TYPE_CHECKING:
@@ -30,12 +31,12 @@ class Document(Base, TimestampMixin, SoftDeleteMixin):
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
 
-    # Source tracking: URL (if crawled) and source type ("upload" | "crawler")
+    # Source tracking: URL (if crawled) and source type (1 = upload, 2 = crawler)
     source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True, index=True)
-    source_type: Mapped[str] = mapped_column(String(50), default="upload", nullable=False, index=True)
+    source_type: Mapped[int] = mapped_column(SmallInteger, default=DocumentSourceType.UPLOAD, nullable=False, index=True)
 
-    # Ingestion Status: "uploaded" | "pending" | "processing" | "indexed" | "failed"
-    status: Mapped[str] = mapped_column(String(20), default="uploaded", nullable=False, index=True)
+    # Ingestion Status: 0=uploaded, 1=pending, 2=processing, 3=indexed, 4=failed
+    status: Mapped[int] = mapped_column(SmallInteger, default=DocumentStatus.UPLOADED, nullable=False, index=True)
 
     category_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("categories.id", ondelete="CASCADE"),

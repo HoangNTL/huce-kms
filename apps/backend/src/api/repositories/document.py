@@ -4,6 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api.constants.enums import DocumentStatus
 from api.models.document import Document
 from api.repositories.base import BaseRepository
 
@@ -91,7 +92,15 @@ class DocumentRepository(BaseRepository[Document]):
         if category_id is not None:
             filters.append(Document.category_id == category_id)
         if status is not None:
-            filters.append(func.lower(Document.status) == status.strip().lower())
+            if isinstance(status, int):
+                filters.append(Document.status == status)
+            elif isinstance(status, str):
+                s = status.strip()
+                if s and s.lower() != "all":
+                    if s.isdigit():
+                        filters.append(Document.status == int(s))
+                    else:
+                        filters.append(Document.status == DocumentStatus.from_str(s))
         if query:
             filters.append(
                 or_(

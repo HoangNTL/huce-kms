@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 from pydantic import ValidationError
 
+from api.constants.enums import DocumentStatus
 from api.schemas.document import (
     DocumentDetailResponse,
     DocumentResponse,
@@ -35,27 +36,32 @@ class TestDocumentSchemas(unittest.TestCase):
     def test_document_response_with_uploaded_status(self):
         data = {**self.base_data, "status": "uploaded"}
         doc = DocumentResponse.model_validate(data)
-        self.assertEqual(doc.status, "uploaded")
+        self.assertEqual(doc.status, DocumentStatus.UPLOADED)
+        self.assertEqual(doc.status_name, "uploaded")
 
     def test_document_response_with_uppercase_status(self):
         data = {**self.base_data, "status": "UPLOADED"}
         doc = DocumentResponse.model_validate(data)
-        self.assertEqual(doc.status, "uploaded")
+        self.assertEqual(doc.status, DocumentStatus.UPLOADED)
+        self.assertEqual(doc.status_name, "uploaded")
 
         data_indexed = {**self.base_data, "status": "INDEXED"}
         doc_indexed = DocumentResponse.model_validate(data_indexed)
-        self.assertEqual(doc_indexed.status, "indexed")
+        self.assertEqual(doc_indexed.status, DocumentStatus.INDEXED)
+        self.assertEqual(doc_indexed.status_name, "indexed")
 
     def test_document_response_standard_statuses(self):
         for s in ["uploaded", "pending", "processing", "indexed", "failed"]:
             data = {**self.base_data, "status": s}
             doc = DocumentResponse.model_validate(data)
-            self.assertEqual(doc.status, s)
+            self.assertEqual(doc.status_name, s)
+            self.assertEqual(doc.status, DocumentStatus.from_str(s))
 
     def test_document_detail_response_with_uploaded(self):
         data = {**self.base_data, "status": "uploaded", "chunks": []}
         doc = DocumentDetailResponse.model_validate(data)
-        self.assertEqual(doc.status, "uploaded")
+        self.assertEqual(doc.status, DocumentStatus.UPLOADED)
+        self.assertEqual(doc.status_name, "uploaded")
         self.assertEqual(doc.chunks, [])
 
     def test_invalid_status_raises_validation_error(self):

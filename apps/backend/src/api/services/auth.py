@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import logging
 from uuid import UUID
 
+from api.constants.enums import UserRole
 from api.core.exceptions import BadRequestException, ConflictException, UnauthorizedException
 from api.core.security import (
     create_access_token,
@@ -49,7 +50,7 @@ class AuthService:
             email=payload.email,
             full_name=payload.full_name,
             hashed_password=hash_password(payload.password),
-            role="user",
+            role=UserRole.USER,
             is_active=True,
         )
         created_user = await self.user_repo.create(user)

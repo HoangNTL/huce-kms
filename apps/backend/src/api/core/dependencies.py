@@ -1,13 +1,14 @@
 from collections.abc import AsyncGenerator, Callable
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Depends, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.constants.enums import UserRole
 from api.core.config import settings
 from api.core.database import async_session_factory
 from api.core.exceptions import ForbiddenException, UnauthorizedException
@@ -67,10 +68,25 @@ class CurrentUser(BaseModel):
     username: str
     email: str
     full_name: str | None = None
-    role: str
+    role: UserRole
     is_active: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def parse_role(cls, v: Any) -> UserRole:
+        if isinstance(v, UserRole):
+            return v
+        if isinstance(v, int):
+            return UserRole(v)
+        if isinstance(v, str):
+            return UserRole.from_str(v)
+        return UserRole.USER
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == UserRole.ADMIN
 
 
 # Development mock token usernames (only recognized when settings.DEBUG=True)
@@ -159,18 +175,26 @@ async def get_current_user(
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 
-def require_role(allowed_roles: list[str]) -> Callable[[CurrentUser], CurrentUser]:
+def require_role(allowed_roles: list[UserRole | str | int]) -> Callable[[CurrentUser], CurrentUser]:
     """Higher-order dependency for Role-Based Access Control (RBAC)."""
+    normalized_allowed: set[int] = set()
+    for r in allowed_roles:
+        if isinstance(r, UserRole):
+            normalized_allowed.add(r.value)
+        elif isinstance(r, int):
+            normalized_allowed.add(r)
+        elif isinstance(r, str):
+            normalized_allowed.add(UserRole.from_str(r).value)
 
     def role_checker(current_user: CurrentUserDep) -> CurrentUser:
-        if current_user.role not in allowed_roles:
-            roles_str = ", ".join(allowed_roles)
+        user_role_val = current_user.role.value if isinstance(current_user.role, UserRole) else int(current_user.role)
+        if user_role_val not in normalized_allowed:
             raise ForbiddenException(
-                message=f"Access denied: Endpoint requires role [{roles_str}], but current role is '{current_user.role}'.",
+                message=f"Access denied: Endpoint requires role in {allowed_roles}, but current role is '{current_user.role}'.",
             )
         return current_user
 
     return role_checker
 
 
-AdminUserDep = Annotated[CurrentUser, Depends(require_role(["admin"]))]
+AdminUserDep = Annotated[CurrentUser, Depends(require_role([UserRole.ADMIN]))]

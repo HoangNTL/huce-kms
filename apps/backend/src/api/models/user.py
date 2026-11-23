@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
-from sqlalchemy import Boolean, String, Uuid, text
+from sqlalchemy import Boolean, SmallInteger, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from api.constants.enums import UserRole
 from api.core.database import Base, SoftDeleteMixin, TimestampMixin, uuid7
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)  # "user" or "admin"
+    role: Mapped[int] = mapped_column(SmallInteger, default=UserRole.USER, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # 1-to-many relationship: One user can have multiple active refresh tokens / devices

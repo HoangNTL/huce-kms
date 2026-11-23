@@ -2,6 +2,7 @@ import time
 from fastapi import APIRouter, status
 from sqlalchemy import func, select
 
+from api.constants.enums import DocumentStatus
 from api.core.config import settings
 from api.core.dependencies import AdminUserDep, DatabaseDep
 from api.models.category import Category
@@ -50,7 +51,7 @@ async def get_dashboard_stats(
     storage_stmt = select(func.coalesce(func.sum(Document.file_size), 0))
     total_file_size = (await db.execute(storage_stmt)).scalar() or 0
 
-    indexed_doc_stmt = select(func.count(Document.id)).where(func.lower(Document.status) == "indexed")
+    indexed_doc_stmt = select(func.count(Document.id)).where(Document.status == DocumentStatus.INDEXED)
     indexed_doc_count = (await db.execute(indexed_doc_stmt)).scalar() or 0
 
     # 6. Service health checks with real latency measurement

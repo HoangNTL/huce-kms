@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  DocumentStatus,
   DocumentStatusBadge,
   DocumentEditModal,
   documentService,
@@ -148,28 +149,37 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
       .catch(() => setCategories([]))
   }, [])
 
-  const loadDocument = React.useCallback(async () => {
-    try {
-      const data = await documentService.getDocument(resolvedParams.id)
-      setDoc(data)
-    } catch (err) {
-      toast.error("Không thể tải thông tin tài liệu", {
-        description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
+  // Load document data
+  React.useEffect(() => {
+    let ignore = false
+    documentService
+      .getDocument(resolvedParams.id)
+      .then((data) => {
+        if (!ignore) {
+          setDoc(data)
+          setIsLoading(false)
+        }
       })
-    } finally {
-      setIsLoading(false)
+      .catch((err) => {
+        if (!ignore) {
+          toast.error("Không thể tải thông tin tài liệu", {
+            description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
+          })
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
     }
   }, [resolvedParams.id])
-
-  React.useEffect(() => {
-    loadDocument()
-  }, [loadDocument])
 
   const handleProcessDocument = async () => {
     setIsProcessing(true)
     try {
       await documentService.processDocument(resolvedParams.id)
-      await loadDocument()
+      const data = await documentService.getDocument(resolvedParams.id)
+      setDoc(data)
       toast.success("Lập chỉ mục tài liệu thành công", {
         description: "Đã phân đoạn và nạp dữ liệu vào hệ thống hỏi đáp AI.",
       })
@@ -231,7 +241,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
           {doc.title}
         </h1>
         <div className="flex items-center gap-2 shrink-0">
-          {doc.status === "UPLOADED" && (
+          {doc.status === DocumentStatus.UPLOADED && (
             <Button
               onClick={handleProcessDocument}
               loading={isProcessing}
@@ -363,7 +373,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
             <CardContent className="p-0">
               {allChunks.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted">
-                  {doc.status.toLowerCase() === "failed" ? (
+                  {doc.status === DocumentStatus.FAILED || String(doc.status).toLowerCase() === "failed" ? (
                     <div className="mx-auto max-w-lg rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-left">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
@@ -384,7 +394,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                       <p className="mt-1 max-w-sm text-2xs text-muted leading-relaxed">
                         Tài liệu đã được lưu trữ an toàn nhưng chưa được phân đoạn và lập chỉ mục tìm kiếm.
                       </p>
-                      {doc.status === "UPLOADED" && (
+                      {doc.status === DocumentStatus.UPLOADED && (
                         <Button
                           size="sm"
                           onClick={handleProcessDocument}
