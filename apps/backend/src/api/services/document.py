@@ -321,7 +321,7 @@ class DocumentService:
         return await self._build_document_response(doc)
 
     async def get_document_detail(self, document_id: UUID) -> DocumentDetailResponse:
-        """Retrieve document metadata and all associated text chunks with download URL."""
+        """Retrieve document metadata and all associated text chunks with download URL, related docs, and assets."""
         doc = await self.document_repo.get_with_chunks(document_id)
         if not doc:
             raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
@@ -333,6 +333,39 @@ class DocumentService:
             )
         except Exception as e:
             logger.warning("Could not attach presigned download_url for doc detail id=%s: %s", document_id, e)
+
+        # 1. Look up related documents sharing the same source_url (e.g. attached PDFs)
+        if doc.source_url:
+            try:
+                all_by_url = await self.document_repo.get_by_source_url(doc.source_url)
+                related = [d for d in all_by_url if d.id != doc.id]
+                resp.related_documents = [await self._build_document_response(r) for r in related]
+            except Exception as e:
+                logger.warning("Could not attach related documents for doc id=%s: %s", document_id, e)
+
+        # 2. Look up assets stored under the document's asset prefix (MinIO assets)
+        try:
+            from api.schemas.document import DocumentAssetResponse
+
+            parent_dir = str(Path(doc.file_path).parent).replace("\\", "/")
+            asset_prefix = f"{parent_dir}/assets/"
+            asset_keys = await self.storage_service.list_files_with_prefix(asset_prefix)
+            asset_items: list[DocumentAssetResponse] = []
+            for k in asset_keys:
+                clean_name = Path(k).name
+                ext = Path(k).suffix.lstrip(".").lower() or "bin"
+                dl_url = await self.storage_service.get_presigned_download_url(k, original_filename=clean_name)
+                asset_items.append(
+                    DocumentAssetResponse(
+                        file_name=clean_name,
+                        file_type=ext,
+                        download_url=dl_url,
+                    )
+                )
+            resp.assets = asset_items
+        except Exception as e:
+            logger.warning("Could not attach assets for doc detail id=%s: %s", document_id, e)
+
         return resp
 
     async def get_document_download_url(

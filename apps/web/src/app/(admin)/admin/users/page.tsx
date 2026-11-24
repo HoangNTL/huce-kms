@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empty"
 import { toast } from "@/components/ui/sonner"
 import { userService } from "@/features/users/services/user-service"
 import { UserRole, ROLE_LABELS, isUserAdmin, type UserProfile } from "@/types/user"
@@ -251,8 +252,19 @@ export default function AdminUsersPage() {
                   <TableSkeleton columns={7} rows={5} />
                 ) : users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-36 text-center text-xs text-muted">
-                      Không tìm thấy tài khoản nào phù hợp với bộ lọc hiện tại.
+                    <TableCell colSpan={7} className="py-10 text-center">
+                      <Empty className="border-0 p-0">
+                        <EmptyMedia variant="icon" className="h-10 w-10 rounded-full bg-slate-100 text-slate-400">
+                          <UserIcon className="h-5 w-5" />
+                        </EmptyMedia>
+                        <EmptyHeader>
+                          <EmptyTitle className="text-sm font-medium text-slate-600">
+                            {hasActiveFilters
+                              ? "Không tìm thấy tài khoản phù hợp"
+                              : "Chưa có tài khoản người dùng"}
+                          </EmptyTitle>
+                        </EmptyHeader>
+                      </Empty>
                     </TableCell>
                   </TableRow>
                 ) : (

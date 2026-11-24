@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Eye, StopCircle } from "lucide-react"
+import { Eye, StopCircle, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empty"
 import {
   Table,
   TableHeader,
@@ -195,8 +196,17 @@ export function SessionsTab() {
               <TableBody>
                 {sessions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-xs text-muted">
-                      Chưa có phiên thu thập nào được ghi nhận.
+                    <TableCell colSpan={5} className="py-10 text-center">
+                      <Empty className="border-0 p-0">
+                        <EmptyMedia variant="icon" className="h-10 w-10 rounded-full bg-slate-100 text-slate-400">
+                          <History className="h-5 w-5" />
+                        </EmptyMedia>
+                        <EmptyHeader>
+                          <EmptyTitle className="text-sm font-medium text-slate-600">
+                            Chưa có phiên thu thập nào
+                          </EmptyTitle>
+                        </EmptyHeader>
+                      </Empty>
                     </TableCell>
                   </TableRow>
                 ) : (

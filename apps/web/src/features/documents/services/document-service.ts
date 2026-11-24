@@ -90,6 +90,9 @@ export const documentService = {
       error_message: doc.error_message ? String(doc.error_message) : null,
       created_at: String(doc.created_at || ""),
       updated_at: doc.updated_at ? String(doc.updated_at) : undefined,
+      source_url: doc.source_url ? String(doc.source_url) : undefined,
+      source_type: typeof doc.source_type === "number" ? doc.source_type : undefined,
+      source_type_name: doc.source_type_name ? String(doc.source_type_name) : undefined,
       chunks: (doc.chunks || []).map((c) => ({
         id: String(c.id || ""),
         document_id: String(c.document_id ?? id),
@@ -99,6 +102,27 @@ export const documentService = {
         content: String(c.content || ""),
         created_at: c.created_at ? String(c.created_at) : undefined,
       })),
+      related_documents: Array.isArray(doc.related_documents)
+        ? (doc.related_documents as Record<string, unknown>[]).map((rd) => ({
+            id: String(rd.id || ""),
+            title: String(rd.title || ""),
+            file_name: String(rd.file_name || ""),
+            file_size: Number(rd.file_size || 0),
+            file_type: String(rd.file_type || ""),
+            status: typeof rd.status === "number" ? (rd.status as DocumentStatus) : DocumentStatus.UPLOADED,
+            download_url: rd.download_url ? String(rd.download_url) : undefined,
+            chunk_count: Number(rd.chunk_count ?? 0),
+            total_pages: Number(rd.total_pages ?? 0),
+            created_at: String(rd.created_at || ""),
+          }))
+        : [],
+      assets: Array.isArray(doc.assets)
+        ? (doc.assets as Record<string, unknown>[]).map((a) => ({
+            file_name: String(a.file_name || ""),
+            file_type: String(a.file_type || ""),
+            download_url: String(a.download_url || ""),
+          }))
+        : [],
     }
   },
 

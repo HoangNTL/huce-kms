@@ -2,13 +2,26 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeft, FileText, Search, Pencil, AlertCircle, ExternalLink, Layers } from "lucide-react"
+import {
+  ArrowLeft,
+  Search,
+  Pencil,
+  AlertCircle,
+  ExternalLink,
+  FileDown,
+  Copy,
+  Check,
+  Image as ImageIcon,
+  File,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   DocumentStatus,
+  DocumentSourceType,
   DocumentStatusBadge,
   DocumentEditModal,
   documentService,
@@ -19,6 +32,7 @@ import { categoryService, type CategoryItem } from "@/features/categories"
 import { DataTablePagination } from "@/components/shared/data-table-pagination"
 import { toast } from "@/components/ui/sonner"
 import { ROUTES } from "@/constants/routes"
+import { API_BASE_URL } from "@/config/env"
 
 interface DocumentDetailPageProps {
   params: Promise<{ id: string }>
@@ -72,7 +86,6 @@ function ChunkItem({ chunk, index }: { chunk: DocumentChunk; index: number }) {
 function DocumentDetailSkeleton() {
   return (
     <div className="space-y-4">
-      {/* Top Header Skeleton */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Skeleton className="h-8 w-24 rounded-lg" />
@@ -84,9 +97,7 @@ function DocumentDetailSkeleton() {
         </div>
       </div>
 
-      {/* 2-Column Grid */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start">
-        {/* Left Column (Metadata) */}
         <div className="space-y-4 lg:col-span-4">
           <Card className="rounded-2xl border border-border bg-surface p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
@@ -104,7 +115,6 @@ function DocumentDetailSkeleton() {
           </Card>
         </div>
 
-        {/* Right Column (Chunks) */}
         <div className="space-y-4 lg:col-span-8">
           <Card className="rounded-2xl border border-border bg-surface p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
@@ -141,6 +151,14 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
 
+  // Markdown body preview state
+  const [markdownBody, setMarkdownBody] = React.useState<string | null>(null)
+  const [isLoadingBody, setIsLoadingBody] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
+
+  // Active right tab
+  const [activeTab, setActiveTab] = React.useState<string>("chunks")
+
   // Load categories for edit modal
   React.useEffect(() => {
     categoryService
@@ -149,39 +167,63 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
       .catch(() => setCategories([]))
   }, [])
 
-  // Load document data
-  React.useEffect(() => {
-    let ignore = false
-    documentService
-      .getDocument(resolvedParams.id)
-      .then((data) => {
-        if (!ignore) {
-          setDoc(data)
-          setIsLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (!ignore) {
-          toast.error("Không thể tải thông tin tài liệu", {
-            description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
-          })
-          setIsLoading(false)
-        }
-      })
+  // Fetch raw markdown content helper
+  const fetchMarkdown = React.useCallback(async (filePath?: string | null, downloadUrl?: string | null) => {
+    const targetUrl = filePath
+      ? `${API_BASE_URL}/documents/raw/${encodeURIComponent(filePath).replace(/%2F/g, "/")}`
+      : downloadUrl
 
-    return () => {
-      ignore = true
+    if (!targetUrl) return
+    setIsLoadingBody(true)
+    try {
+      const res = await fetch(targetUrl)
+      if (!res.ok) throw new Error("Could not fetch document content")
+      const text = await res.text()
+      setMarkdownBody(text)
+    } catch {
+      setMarkdownBody(null)
+    } finally {
+      setIsLoadingBody(false)
     }
-  }, [resolvedParams.id])
+  }, [])
+
+  // Load document data and preview
+  const loadDocumentDetail = React.useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const data = await documentService.getDocument(resolvedParams.id)
+      setDoc(data)
+      setIsLoading(false)
+
+      // Default tab: if 0 chunks and is MD file, default to preview so admin can read text immediately
+      if ((data.chunk_count || 0) === 0 && data.file_type === "md") {
+        setActiveTab("preview")
+      }
+
+      if (data.file_type === "md" && (data.file_path || data.download_url)) {
+        await fetchMarkdown(data.file_path, data.download_url)
+      }
+    } catch (err) {
+      toast.error("Không thể tải thông tin tài liệu", {
+        description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
+      })
+      setIsLoading(false)
+    }
+  }, [resolvedParams.id, fetchMarkdown])
+
+  // Initial load
+  React.useEffect(() => {
+    loadDocumentDetail()
+  }, [loadDocumentDetail])
 
   const handleProcessDocument = async () => {
     setIsProcessing(true)
     try {
       await documentService.processDocument(resolvedParams.id)
-      const data = await documentService.getDocument(resolvedParams.id)
-      setDoc(data)
+      await loadDocumentDetail()
+      setActiveTab("chunks")
       toast.success("Lập chỉ mục tài liệu thành công", {
-        description: "Đã phân đoạn và nạp dữ liệu vào hệ thống hỏi đáp AI.",
+        description: "Đã phân đoạn và nạp dữ liệu vào kho tri thức AI.",
       })
     } catch (err) {
       toast.error("Lập chỉ mục thất bại", {
@@ -190,6 +232,14 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const handleCopyMarkdown = () => {
+    if (!markdownBody) return
+    navigator.clipboard.writeText(markdownBody)
+    setCopied(true)
+    toast.success("Đã sao chép nội dung văn bản")
+    setTimeout(() => setCopied(false), 2000)
   }
 
   if (isLoading) {
@@ -233,24 +283,45 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   const startIndex = (currentPage - 1) * pageSize
   const paginatedChunks = filteredChunks.slice(startIndex, startIndex + pageSize)
 
+  // Attachments & Assets
+  const relatedDocs = doc.related_documents || []
+  const assets = doc.assets || []
+  const totalAttachments = relatedDocs.length + assets.length
+  const isDraft = doc.status === DocumentStatus.UPLOADED
+
+  let sourceHost = ""
+  if (doc.source_url) {
+    try {
+      sourceHost = new URL(doc.source_url).hostname
+    } catch {
+      sourceHost = "Xem liên kết"
+    }
+  }
+
   return (
     <div className="w-full space-y-4">
       {/* 1. Page Header Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-3">
-        <h1 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate" title={doc.title}>
+        <h1
+          className="font-heading text-lg sm:text-xl font-bold tracking-tight text-heading truncate min-w-0"
+          title={doc.title}
+        >
           {doc.title}
         </h1>
+
+        {/* Header Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          {doc.status === DocumentStatus.UPLOADED && (
+          {isDraft && (
             <Button
               onClick={handleProcessDocument}
               loading={isProcessing}
-              className="h-8 shrink-0 gap-1.5 rounded-lg text-xs font-medium"
+              className="h-8 shrink-0 rounded-lg text-xs font-semibold bg-brand-primary text-white hover:bg-brand-primary/90 shadow-xs px-3"
+              title="Phân đoạn và lập chỉ mục vào kho tri thức AI"
             >
-              <Layers className="h-3.5 w-3.5" />
               <span>Lập chỉ mục</span>
             </Button>
           )}
+
           {doc.download_url && (
             <a
               href={doc.download_url}
@@ -261,11 +332,12 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                 variant="outline"
                 className="h-8 gap-1.5 rounded-lg border-border text-xs font-medium text-heading hover:bg-surface-hover"
               >
-                <ExternalLink className="h-3.5 w-3.5 text-muted" />
+                <FileDown className="h-3.5 w-3.5 text-muted" />
                 <span>Xem tệp gốc</span>
               </Button>
             </a>
           )}
+
           <Button
             variant="outline"
             onClick={() => setIsEditModalOpen(true)}
@@ -277,9 +349,9 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
         </div>
       </div>
 
-      {/* 2. Bố cục 2 cột (Left: 4 cols, Right: 8 cols) */}
+      {/* 2. Main 2-Column Master - Detail Layout */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start">
-        {/* Left Column: Metadata Thông tin tài liệu (Sticky khi cuộn) */}
+        {/* Left Column: Metadata Thông tin tài liệu */}
         <div className="space-y-4 lg:col-span-4 xl:col-span-4 lg:sticky lg:top-0">
           <Card className="rounded-2xl border border-border bg-surface shadow-xs py-0 gap-0">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border px-5 py-3.5">
@@ -288,44 +360,111 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
               </CardTitle>
               <DocumentStatusBadge status={doc.status} />
             </CardHeader>
+
             <CardContent className="p-5">
               <div className="space-y-3.5 text-xs text-muted">
+                {/* Source Origin */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0">Hình thức</span>
+                  <span className="font-medium text-heading">
+                    {doc.source_type === DocumentSourceType.CRAWLER
+                      ? "Thu thập tự động (Crawler)"
+                      : "Tải lên trực tiếp"}
+                  </span>
+                </div>
+
+                {/* Source Web URL if present */}
+                {doc.source_url && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="shrink-0">Nguồn bài viết</span>
+                    <a
+                      href={doc.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-brand-primary hover:underline truncate max-w-[190px]"
+                      title={doc.source_url}
+                    >
+                      <span className="truncate">{sourceHost}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  </div>
+                )}
+
+                {/* Document ID */}
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Mã tài liệu</span>
-                  <span className="font-medium text-heading">{resolvedParams.id}</span>
+                  <span
+                    className="font-mono text-2xs text-heading max-w-[180px] truncate"
+                    title={resolvedParams.id}
+                  >
+                    {resolvedParams.id}
+                  </span>
                 </div>
+
+                {/* Category */}
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Danh mục</span>
-                  <span className="max-w-[180px] truncate font-medium text-heading text-right" title={categoryName}>
+                  <span
+                    className="max-w-[180px] truncate font-medium text-heading text-right"
+                    title={categoryName}
+                  >
                     {categoryName}
                   </span>
                 </div>
+
+                {/* Original Filename */}
                 <div className="flex items-center justify-between gap-3 min-w-0">
                   <span className="shrink-0">Tên tệp gốc</span>
-                  <span className="max-w-[180px] truncate font-medium text-heading text-right" title={doc.file_name}>
+                  <span
+                    className="max-w-[180px] truncate font-medium text-heading text-right"
+                    title={doc.file_name}
+                  >
                     {doc.file_name}
                   </span>
                 </div>
+
+                {/* Format */}
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Định dạng</span>
-                  <span className="font-medium uppercase text-heading">{doc.file_type}</span>
+                  <span className="font-medium uppercase text-heading">
+                    {doc.file_type}
+                  </span>
                 </div>
+
+                {/* Size */}
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Kích thước</span>
                   <span className="font-medium text-heading">{fileSizeMB} MB</span>
                 </div>
+
+                {/* Chunks */}
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Số chunks</span>
                   <span className="font-medium text-heading">
                     {doc.chunk_count ?? allChunks.length}
                   </span>
                 </div>
+
+                {/* Total Pages */}
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Số trang</span>
                   <span className="font-medium text-heading">
                     {doc.total_pages ?? 1} trang
                   </span>
                 </div>
+
+                {/* Attached Files & Assets summary */}
+                {totalAttachments > 0 && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="shrink-0">Tệp đính kèm</span>
+                    <span className="font-medium text-heading">
+                      {relatedDocs.length > 0 && `${relatedDocs.length} PDF `}
+                      {assets.length > 0 && `${assets.length} ảnh`}
+                    </span>
+                  </div>
+                )}
+
+                {/* Upload date */}
                 {doc.created_at && (
                   <div className="flex items-center justify-between gap-3">
                     <span className="shrink-0">Ngày tải lên</span>
@@ -339,103 +478,248 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
           </Card>
         </div>
 
-        {/* Right Column: Chunks Explorer */}
+        {/* Right Column: Tabbed Workspace (Preview, Chunks, Attachments) */}
         <div className="space-y-4 lg:col-span-8 xl:col-span-8">
           <Card className="rounded-2xl border border-border bg-surface shadow-xs py-0 gap-0">
-            <CardHeader className="border-b border-border px-5 py-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-1.5">
-                  <CardTitle className="font-heading text-sm font-bold text-heading">
-                    Danh sách Chunks
-                  </CardTitle>
-                  <span className="text-xs font-medium text-muted">
-                    ({searchTerm.trim() ? `${filteredChunks.length}/${allChunks.length}` : allChunks.length})
-                  </span>
-                </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <CardHeader className="border-b border-border px-5 py-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                    <TabsTrigger
+                      value="chunks"
+                      className="text-xs px-3 py-1 font-medium data-[state=active]:bg-white data-[state=active]:text-heading data-[state=active]:shadow-2xs"
+                    >
+                      Danh sách Chunks ({allChunks.length})
+                    </TabsTrigger>
 
-                {allChunks.length > 0 && (
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-                    <Input
-                      placeholder="Tìm kiếm chunk..."
-                      value={searchTerm}
-                      onChange={(e) => {
-                        setSearchTerm(e.target.value)
-                        setCurrentPage(1)
-                      }}
-                      className="h-8 rounded-lg pl-8 text-xs"
-                    />
-                  </div>
-                )}
-              </div>
-            </CardHeader>
+                    {doc.file_type === "md" && (
+                      <TabsTrigger
+                        value="preview"
+                        className="text-xs px-3 py-1 font-medium data-[state=active]:bg-white data-[state=active]:text-heading data-[state=active]:shadow-2xs"
+                      >
+                        Nội dung văn bản
+                      </TabsTrigger>
+                    )}
 
-            <CardContent className="p-0">
-              {allChunks.length === 0 ? (
-                <div className="p-8 text-center text-xs text-muted">
-                  {doc.status === DocumentStatus.FAILED || String(doc.status).toLowerCase() === "failed" ? (
-                    <div className="mx-auto max-w-lg rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-left">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-                        <div className="space-y-1">
-                          <p className="font-semibold text-destructive">Xử lý tài liệu không thành công</p>
-                          <p className="text-xs text-muted leading-relaxed">
-                            {doc.error_message || "Tài liệu là file scan/ảnh hoặc không có lớp văn bản điện tử để trích xuất."}
-                          </p>
-                        </div>
-                      </div>
+                    {totalAttachments > 0 && (
+                      <TabsTrigger
+                        value="attachments"
+                        className="text-xs px-3 py-1 font-medium data-[state=active]:bg-white data-[state=active]:text-heading data-[state=active]:shadow-2xs"
+                      >
+                        Tệp đính kèm ({totalAttachments})
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+
+                  {activeTab === "chunks" && allChunks.length > 0 && (
+                    <div className="relative w-full sm:w-60">
+                      <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+                      <Input
+                        placeholder="Tìm kiếm chunk..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value)
+                          setCurrentPage(1)
+                        }}
+                        className="h-8 rounded-lg pl-8 text-xs"
+                      />
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center p-8 text-center">
-                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                        <FileText className="h-5 w-5" />
-                      </div>
-                      <p className="text-xs font-semibold text-heading">Tài liệu ở trạng thái bản nháp</p>
-                      <p className="mt-1 max-w-sm text-2xs text-muted leading-relaxed">
-                        Tài liệu đã được lưu trữ an toàn nhưng chưa được phân đoạn và lập chỉ mục tìm kiếm.
-                      </p>
-                      {doc.status === DocumentStatus.UPLOADED && (
-                        <Button
-                          size="sm"
-                          onClick={handleProcessDocument}
-                          loading={isProcessing}
-                          className="mt-4 h-8 gap-1.5 rounded-lg text-xs"
-                        >
-                          <Layers className="h-3.5 w-3.5" />
-                          <span>Lập chỉ mục tìm kiếm</span>
-                        </Button>
+                  )}
+
+                  {activeTab === "preview" && markdownBody && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyMarkdown}
+                      className="h-7 gap-1 text-xs text-muted hover:text-heading"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          <span className="text-emerald-600 font-medium">Đã sao chép</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Sao chép</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {/* Tab 1: Danh sách Chunks */}
+                <TabsContent value="chunks" className="m-0 focus-visible:outline-none">
+                  {allChunks.length === 0 ? (
+                    <div className="py-8 px-4 text-center text-xs text-muted">
+                      {doc.status === DocumentStatus.FAILED ||
+                      String(doc.status).toLowerCase() === "failed" ? (
+                        <div className="mx-auto max-w-lg rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-left">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                            <div className="space-y-1">
+                              <p className="font-semibold text-destructive">
+                                Xử lý tài liệu không thành công
+                              </p>
+                              <p className="text-xs text-muted leading-relaxed">
+                                {doc.error_message ||
+                                  "Tài liệu là file scan/ảnh hoặc không có lớp văn bản điện tử để trích xuất."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p>
+                          Chưa có dữ liệu phân đoạn. Bấm <strong className="text-heading font-semibold">Lập chỉ mục</strong> ở trên để phân đoạn.
+                        </p>
                       )}
                     </div>
-                  )}
-                </div>
-              ) : filteredChunks.length === 0 ? (
-                <div className="p-8 text-center text-xs text-muted">
-                  <p>Không tìm thấy chunk nào khớp với từ khóa &ldquo;{searchTerm}&rdquo;.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="divide-y divide-border/70">
-                    {paginatedChunks.map((chk, idx) => (
-                      <ChunkItem key={chk.id || idx} chunk={chk} index={startIndex + idx} />
-                    ))}
-                  </div>
+                  ) : filteredChunks.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-muted">
+                      <p>
+                        Không tìm thấy chunk nào khớp với từ khóa &ldquo;{searchTerm}&rdquo;.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="divide-y divide-border/70">
+                        {paginatedChunks.map((chk, idx) => (
+                          <ChunkItem key={chk.id || idx} chunk={chk} index={startIndex + idx} />
+                        ))}
+                      </div>
 
-                  {filteredChunks.length > pageSize && (
-                    <DataTablePagination
-                      currentPage={currentPage}
-                      pageSize={pageSize}
-                      totalItems={filteredChunks.length}
-                      onPageChange={setCurrentPage}
-                      onPageSizeChange={(newSize) => {
-                        setPageSize(newSize)
-                        setCurrentPage(1)
-                      }}
-                      pageSizeOptions={[5, 10, 20]}
-                    />
+                      {filteredChunks.length > pageSize && (
+                        <DataTablePagination
+                          currentPage={currentPage}
+                          pageSize={pageSize}
+                          totalItems={filteredChunks.length}
+                          onPageChange={setCurrentPage}
+                          onPageSizeChange={(newSize) => {
+                            setPageSize(newSize)
+                            setCurrentPage(1)
+                          }}
+                          pageSizeOptions={[5, 10, 20]}
+                        />
+                      )}
+                    </>
                   )}
-                </>
-              )}
-            </CardContent>
+                </TabsContent>
+
+                {/* Tab 2: Nội dung văn bản (Preview Markdown) */}
+                {doc.file_type === "md" && (
+                  <TabsContent value="preview" className="m-0 focus-visible:outline-none">
+                    {isLoadingBody ? (
+                      <div className="p-6 space-y-3">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="h-4 w-2/3" />
+                      </div>
+                    ) : markdownBody ? (
+                      <div className="max-h-[600px] overflow-y-auto p-5 text-xs text-body leading-relaxed whitespace-pre-wrap font-sans bg-surface">
+                        {markdownBody}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-xs text-muted">
+                        Không thể tải nội dung văn bản xem trước.
+                      </div>
+                    )}
+                  </TabsContent>
+                )}
+
+                {/* Tab 3: Tệp đính kèm & Ảnh */}
+                {totalAttachments > 0 && (
+                  <TabsContent value="attachments" className="m-0 p-5 space-y-4 focus-visible:outline-none">
+                    {/* 1. Related PDFs */}
+                    {relatedDocs.length > 0 && (
+                      <div className="space-y-2.5">
+                        <h3 className="text-xs font-semibold text-heading flex items-center gap-1.5">
+                          <File className="h-3.5 w-3.5 text-rose-500" />
+                          <span>Tài liệu PDF đính kèm ({relatedDocs.length})</span>
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {relatedDocs.map((rd) => (
+                            <div
+                              key={rd.id}
+                              className="rounded-xl border border-border p-3 flex items-center justify-between gap-3 bg-surface hover:border-slate-300 transition-colors"
+                            >
+                              <div className="min-w-0">
+                                <Link
+                                  href={ROUTES.ADMIN.DOCUMENT_DETAIL(rd.id)}
+                                  className="text-xs font-semibold text-heading hover:text-brand-primary truncate block"
+                                  title={rd.title}
+                                >
+                                  {rd.title}
+                                </Link>
+                                <span className="text-2xs text-muted">
+                                  {rd.file_name} · {(rd.file_size / 1024 / 1024).toFixed(2)} MB
+                                </span>
+                              </div>
+                              {rd.download_url && (
+                                <a
+                                  href={rd.download_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-2xs font-medium text-brand-primary hover:underline shrink-0"
+                                >
+                                  Tải về ↗
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Image Assets (Scans / Illustrations) */}
+                    {assets.length > 0 && (
+                      <div className="space-y-2.5">
+                        <h3 className="text-xs font-semibold text-heading flex items-center gap-1.5">
+                          <ImageIcon className="h-3.5 w-3.5 text-brand-primary" />
+                          <span>Hình ảnh & Bản scan ({assets.length})</span>
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {assets.map((ast, aIdx) => (
+                            <div
+                              key={aIdx}
+                              className="rounded-xl border border-border p-2.5 space-y-2 bg-surface hover:border-slate-300 transition-colors"
+                            >
+                              <div className="flex items-center justify-between text-2xs">
+                                <span
+                                  className="font-medium text-heading truncate max-w-[140px]"
+                                  title={ast.file_name}
+                                >
+                                  {ast.file_name}
+                                </span>
+                                <a
+                                  href={ast.download_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-brand-primary hover:underline inline-flex items-center gap-0.5 shrink-0"
+                                >
+                                  <span>Xem</span>
+                                  <ExternalLink className="h-2.5 w-2.5" />
+                                </a>
+                              </div>
+                              <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border border-border/60 p-1 flex items-center justify-center h-28 overflow-hidden">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={ast.download_url}
+                                  alt={ast.file_name}
+                                  className="max-h-full max-w-full object-contain mx-auto"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+                )}
+              </CardContent>
+            </Tabs>
           </Card>
         </div>
       </div>
@@ -447,7 +731,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
         document={doc}
         categories={categories}
         onSuccess={() => {
-          documentService.getDocument(resolvedParams.id).then((data) => setDoc(data))
+          loadDocumentDetail()
         }}
       />
     </div>

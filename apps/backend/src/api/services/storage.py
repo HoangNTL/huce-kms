@@ -258,6 +258,41 @@ class StorageService:
 
         return Path(object_name).exists()
 
+    async def list_files_with_prefix(self, prefix: str) -> list[str]:
+        """List object keys in storage matching a prefix."""
+        clean_prefix = self._clean_key(prefix)
+
+        # 1. MinIO listing
+        if self.backend == "minio" and self._minio_client:
+            try:
+                def _list() -> list[str]:
+                    objs = self.client.list_objects(self.bucket_name, prefix=clean_prefix, recursive=True)
+                    return [o.object_name for o in objs if o.object_name]
+
+                return await asyncio.to_thread(_list)
+            except Exception as e:
+                logger.warning("MinIO list_objects failed for prefix '%s': %s", clean_prefix, e)
+                return []
+
+        # 2. Local filesystem listing
+        local_target = self.local_upload_dir / clean_prefix
+        if local_target.exists():
+            try:
+                def _list_local() -> list[str]:
+                    if local_target.is_dir():
+                        return [
+                            str(p.relative_to(self.local_upload_dir)).replace("\\", "/")
+                            for p in local_target.rglob("*")
+                            if p.is_file()
+                        ]
+                    return []
+
+                return await asyncio.to_thread(_list_local)
+            except Exception as e:
+                logger.warning("Local list_objects failed for prefix '%s': %s", clean_prefix, e)
+
+        return []
+
     async def _ensure_bucket_once(self) -> None:
         if not self._bucket_verified:
             await self.ensure_bucket_exists()

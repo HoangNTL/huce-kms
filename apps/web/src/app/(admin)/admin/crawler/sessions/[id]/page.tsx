@@ -6,7 +6,6 @@ import {
   Search,
   Copy,
   Check,
-  StopCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -263,6 +262,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
   // Aggregate stats
   const totalItems = data?.items?.length || 0
   const ingestedCount = data?.items?.filter((i) => i.is_ingested).length || 0
+  const remainingCount = totalItems - ingestedCount
   const pdfItemsCount = data?.items?.filter((i) => i.pdf_count > 0).length || 0
   const imageItemsCount = data?.items?.filter((i) => i.image_count > 0).length || 0
   const failedItemsCount = data?.items?.filter((i) => i.status !== "success").length || 0
@@ -362,22 +362,33 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                 onClick={handleCancelSession}
                 disabled={isCancelling}
                 loading={isCancelling}
-                className="gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 shadow-xs"
+                className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 shadow-xs px-3"
               >
-                <StopCircle className="h-3.5 w-3.5" />
                 <span>Hủy phiên</span>
               </Button>
             )}
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleIngestSession}
-              disabled={isRunning || isIngestingSession}
-              loading={isIngestingSession}
-              className="bg-brand-primary text-white hover:bg-brand-primary/90 text-xs font-semibold shadow-xs"
-            >
-              <span>Lưu tất cả</span>
-            </Button>
+
+            {!isRunning && totalItems > 0 && (
+              remainingCount === 0 ? (
+                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-lg">
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Đã lưu toàn bộ</span>
+                </div>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleIngestSession}
+                  disabled={isIngestingSession}
+                  loading={isIngestingSession}
+                  className="bg-brand-primary text-white hover:bg-brand-primary/90 text-xs font-semibold shadow-xs"
+                >
+                  <span>
+                    {ingestedCount > 0 ? `Lưu ${remainingCount} bài còn lại` : "Lưu tất cả"}
+                  </span>
+                </Button>
+              )
+            )}
           </div>
         </div>
 

@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empty"
 import {
   Table,
   TableHeader,
@@ -234,7 +235,23 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedDiscoveredItems.map((item, idx) => {
+                  {paginatedDiscoveredItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-10 text-center">
+                        <Empty className="border-0 p-0">
+                          <EmptyMedia variant="icon" className="h-10 w-10 rounded-full bg-slate-100 text-slate-400">
+                            <Globe className="h-5 w-5" />
+                          </EmptyMedia>
+                          <EmptyHeader>
+                            <EmptyTitle className="text-sm font-medium text-slate-600">
+                              Không tìm thấy liên kết nào
+                            </EmptyTitle>
+                          </EmptyHeader>
+                        </Empty>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedDiscoveredItems.map((item, idx) => {
                     const isSelected = selectedUrls.has(item.url)
                     const { cleanTitle, dateStr } = parseTitleAndDate(item.title)
                     const { domain, path } = getUrlDomainAndPath(item.url)
@@ -277,7 +294,7 @@ export function DiscoveryTab({ onApproved }: DiscoveryTabProps) {
                         </TableCell>
                       </TableRow>
                     )
-                  })}
+                  }))}
                 </TableBody>
               </Table>
             </div>

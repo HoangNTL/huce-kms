@@ -1,9 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { ExternalLink, StopCircle, Trash2 } from "lucide-react"
+import { ExternalLink, Trash2, ListTree } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empty"
 import {
   Table,
   TableHeader,
@@ -285,55 +287,40 @@ export function QueueTab({ categories, onCompleted }: QueueTabProps) {
       {activeSession && (
         <Card className="border-border shadow-xs overflow-hidden bg-slate-50/70 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="relative flex h-2.5 w-2.5">
-                {isSessionRunning ? (
-                  <>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-primary opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-primary" />
-                  </>
-                ) : (
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400" />
-                )}
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-heading">
-                    Tiến độ phiên: <span className="font-mono text-slate-700">{activeSession.session_id}</span>
-                  </span>
-                  <span
-                    className={`inline-block px-1.5 py-0.5 rounded text-2xs font-semibold uppercase ${
-                      activeSession.status === "in_progress" || activeSession.status === "pending"
-                        ? "bg-blue-50 text-blue-700 border border-blue-200"
-                        : activeSession.status === "completed"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : activeSession.status === "cancelled"
-                        ? "bg-slate-100 text-slate-700 border border-slate-200"
-                        : activeSession.status === "interrupted"
-                        ? "bg-amber-50 text-amber-700 border border-amber-200"
-                        : "bg-rose-50 text-rose-700 border border-rose-200"
-                    }`}
-                  >
-                    {activeSession.status === "in_progress" || activeSession.status === "pending"
-                      ? "Đang chạy"
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-heading">
+                  Tiến độ thu thập: <span className="font-mono text-slate-700">{activeSession.session_id}</span>
+                </span>
+                <Badge
+                  variant="outline"
+                  className={
+                    activeSession.status === "in_progress" || activeSession.status === "pending"
+                      ? "text-blue-700 bg-blue-50 border-blue-200 font-medium text-2xs"
                       : activeSession.status === "completed"
-                      ? "Hoàn thành"
+                      ? "text-emerald-700 bg-emerald-50 border-emerald-200 font-medium text-2xs"
                       : activeSession.status === "cancelled"
-                      ? "Đã hủy"
-                      : activeSession.status === "interrupted"
-                      ? "Bị gián đoạn"
-                      : "Thất bại"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-2xs text-muted mt-0.5">
-                  <span>
-                    Đã xử lý: {activeSession.completed_urls}/{activeSession.total_urls} URLs
-                  </span>
-                  <span>·</span>
-                  <span className="text-emerald-600 font-medium">Thành công: {activeSession.successful}</span>
-                  <span>·</span>
-                  <span className="text-rose-600 font-medium">Thất bại: {activeSession.failed}</span>
-                </div>
+                      ? "text-slate-600 bg-slate-100 border-slate-200 font-medium text-2xs"
+                      : "text-rose-700 bg-rose-50 border-rose-200 font-medium text-2xs"
+                  }
+                >
+                  {activeSession.status === "in_progress" || activeSession.status === "pending"
+                    ? "Đang chạy"
+                    : activeSession.status === "completed"
+                    ? "Hoàn thành"
+                    : activeSession.status === "cancelled"
+                    ? "Đã hủy"
+                    : "Thất bại"}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3 text-2xs text-muted mt-1">
+                <span>
+                  Đã xử lý: {activeSession.completed_urls}/{activeSession.total_urls} URLs
+                </span>
+                <span>·</span>
+                <span className="text-emerald-600 font-medium">Thành công: {activeSession.successful}</span>
+                <span>·</span>
+                <span className="text-rose-600 font-medium">Thất bại: {activeSession.failed}</span>
               </div>
             </div>
 
@@ -345,9 +332,8 @@ export function QueueTab({ categories, onCompleted }: QueueTabProps) {
                   onClick={handleCancelSession}
                   disabled={isCancelling}
                   loading={isCancelling}
-                  className="h-7 px-2.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 rounded-lg gap-1"
+                  className="h-7 px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 rounded-lg font-medium"
                 >
-                  <StopCircle className="h-3 w-3" />
                   <span>Hủy thu thập</span>
                 </Button>
               )}
@@ -466,8 +452,17 @@ export function QueueTab({ categories, onCompleted }: QueueTabProps) {
               <TableBody>
                 {approvedUrls.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={2} className="h-32 text-center text-xs text-muted">
-                      Hàng đợi hiện đang trống. Hãy qua tab &quot;Khám phá&quot; để tìm và duyệt liên kết.
+                    <TableCell colSpan={2} className="py-10 text-center">
+                      <Empty className="border-0 p-0">
+                        <EmptyMedia variant="icon" className="h-10 w-10 rounded-full bg-slate-100 text-slate-400">
+                          <ListTree className="h-5 w-5" />
+                        </EmptyMedia>
+                        <EmptyHeader>
+                          <EmptyTitle className="text-sm font-medium text-slate-600">
+                            Hàng đợi hiện đang trống
+                          </EmptyTitle>
+                        </EmptyHeader>
+                      </Empty>
                     </TableCell>
                   </TableRow>
                 ) : (

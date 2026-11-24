@@ -112,8 +112,22 @@ class DocumentResponse(DocumentBase):
 
 
 
+class DocumentAssetResponse(BaseModel):
+    file_name: str
+    file_type: str
+    download_url: str
+
+
 class DocumentDetailResponse(DocumentResponse):
     chunks: list[DocumentChunkResponse] = Field(default_factory=list)
+    related_documents: list[DocumentResponse] = Field(
+        default_factory=list,
+        description="Related documents sharing the same source URL (e.g. attached regulations/PDFs)",
+    )
+    assets: list[DocumentAssetResponse] = Field(
+        default_factory=list,
+        description="Attached image scans or illustrations stored on MinIO for this document",
+    )
 
 
 class DocumentDownloadUrlResponse(BaseModel):

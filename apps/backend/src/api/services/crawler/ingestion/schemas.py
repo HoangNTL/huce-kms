@@ -22,6 +22,7 @@ class IngestItemResult(BaseModel):
     document_id: UUID | None = None
     title: str
     file_name: str
+    file_path: str | None = None
     file_type: str
     source_url: str
     status: Literal["uploaded", "indexed", "skipped", "failed"]

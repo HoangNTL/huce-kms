@@ -89,6 +89,34 @@ class CrawlIngestionAdapter:
         cleaned_text = re.sub(r"\s+", " ", body).strip()
         return len(cleaned_text) >= min_text_chars
 
+    @staticmethod
+    def is_scanned_document_image(img_path: Path) -> bool:
+        """
+        Detect if an image is likely a scanned document sheet (e.g. A4 notice, official decision)
+        versus a landscape illustration photo, banner, or activity snapshot.
+        """
+        try:
+            if not img_path.exists() or img_path.stat().st_size < 40 * 1024:
+                return False
+
+            import pymupdf
+
+            with pymupdf.open(str(img_path)) as doc:
+                if len(doc) == 0:
+                    return False
+                rect = doc[0].rect
+                if rect.width <= 0 or rect.height <= 0:
+                    return False
+
+                # Vertical A4 sheet has aspect ratio height/width ~ 1.41
+                aspect_ratio = rect.height / rect.width
+                is_portrait = aspect_ratio >= 1.15
+                has_doc_dimensions = rect.height >= 500
+
+                return is_portrait and has_doc_dimensions
+        except Exception:
+            return False
+
     async def enrich_markdown_with_ocr(
         self,
         markdown_content: str,
@@ -99,6 +127,15 @@ class CrawlIngestionAdapter:
             return markdown_content
 
         if "## Nội dung trích xuất từ văn bản đính kèm" in markdown_content:
+            return markdown_content
+
+        # Filter: only transcribe images that match scanned document geometry (A4 portrait)
+        candidate_scans = [img for img in image_files if self.is_scanned_document_image(img)]
+        if not candidate_scans:
+            logger.info(
+                "No scanned document candidates detected among %d image attachments; skipping OCR.",
+                len(image_files),
+            )
             return markdown_content
 
         try:
@@ -112,16 +149,14 @@ class CrawlIngestionAdapter:
             }
 
             ocr_sections = []
-            for img_path in image_files:
+            for img_path in candidate_scans:
                 try:
-                    if not img_path.exists() or img_path.stat().st_size < 15 * 1024:
-                        continue
                     img_bytes = img_path.read_bytes()
                     mime = mime_types.get(img_path.suffix.lower(), "image/png")
                     extracted_text = await DocumentParser.ocr_image_bytes(
                         image_bytes=img_bytes,
                         mime_type=mime,
-                        context_label=f"image attachment '{img_path.name}'",
+                        context_label=f"scanned document '{img_path.name}'",
                     )
                     if extracted_text and len(extracted_text.strip()) > 40:
                         ocr_sections.append(
@@ -163,6 +198,7 @@ class CrawlIngestionAdapter:
             )
 
         # 2. Process Markdown Document (filter out empty/stub wrapper pages)
+        md_result: IngestItemResult | None = None
         if self.is_meaningful_markdown(enriched_markdown):
             md_bytes = enriched_markdown.encode("utf-8")
             md_name = f"{page_dir.name}_content.md"
@@ -195,6 +231,8 @@ class CrawlIngestionAdapter:
                 )
             )
 
+        parent_doc_id = md_result.document_id if md_result and md_result.document_id else None
+
         # 3. Process Attached PDFs
         for pdf_path in payload.pdf_files:
             try:
@@ -225,41 +263,55 @@ class CrawlIngestionAdapter:
                     )
                 )
 
-        # 4. Process Attached Images (Legal Evidence / Scanned Documents)
-        for img_path in payload.image_files:
-            try:
-                if not img_path.exists() or img_path.stat().st_size < 10 * 1024:
-                    # Skip tiny thumbnails/logos under 10KB
-                    continue
-                img_bytes = img_path.read_bytes()
-                ext = img_path.suffix.lower()
-                img_ext_clean = ext.lstrip(".") or "jpg"
-                raw_img_title = f"{payload.metadata.content.title.strip()} - Bản scan ({img_path.name})"
-                img_title = (raw_img_title[:251] + "...") if len(raw_img_title) > 255 else raw_img_title
-                img_result = await self._ingest_file(
-                    file_bytes=img_bytes,
-                    file_name=img_path.name,
-                    title=img_title,
-                    file_type=img_ext_clean,
-                    source_url=payload.metadata.source.url,
-                    category_id=category_id,
-                    created_by_id=actual_creator_id,
-                    auto_publish=auto_publish,
-                    is_image_asset=True,
-                )
-                results.append(img_result)
-            except Exception as e:
-                logger.error("Failed to ingest image '%s': %s", img_path, e, exc_info=True)
-                results.append(
-                    IngestItemResult(
-                        title=f"Bản scan {img_path.name}"[:255],
-                        file_name=img_path.name[:255],
-                        file_type="image",
-                        source_url=payload.metadata.source.url,
-                        status="failed",
-                        error=str(e),
+        # 4. Process Attached Images as Assets of the Parent Document
+        # Uploads genuine images to MinIO under: documents/crawler/{YYYY}/{MM}/{parent_doc_id}/assets/{clean_name}
+        # Does NOT create duplicate rows in the PostgreSQL documents table.
+        uploaded_assets: list[dict[str, Any]] = []
+        parent_file_path = md_result.file_path if md_result and md_result.file_path else None
+        if payload.image_files and (parent_doc_id or parent_file_path):
+            if parent_file_path:
+                parent_dir = str(Path(parent_file_path).parent).replace("\\", "/")
+            else:
+                now_utc = datetime.now(timezone.utc)
+                parent_dir = f"documents/crawler/{now_utc.year:04d}/{now_utc.month:02d}/{parent_doc_id}"
+            asset_prefix = f"{parent_dir}/assets"
+
+            for img_path in payload.image_files:
+                try:
+                    if not img_path.exists() or img_path.stat().st_size < 10 * 1024:
+                        continue
+                    clean_name = Path(img_path.name).name or "image.jpg"
+                    if len(clean_name) > 255:
+                        ext = Path(clean_name).suffix
+                        clean_name = clean_name[: 255 - len(ext)] + ext
+
+                    ext = Path(clean_name).suffix.lower()
+                    content_type_map = {
+                        ".jpg": "image/jpeg",
+                        ".jpeg": "image/jpeg",
+                        ".png": "image/png",
+                        ".webp": "image/webp",
+                    }
+                    content_type = content_type_map.get(ext, "image/jpeg")
+                    asset_key = f"{asset_prefix}/{clean_name}"
+
+                    saved_asset_key = await self.document_service.storage_service.upload_file(
+                        file_bytes=img_path.read_bytes(),
+                        object_name=asset_key,
+                        content_type=content_type,
                     )
-                )
+                    uploaded_assets.append({
+                        "file_name": clean_name,
+                        "storage_key": saved_asset_key,
+                        "is_scan": self.is_scanned_document_image(img_path),
+                    })
+                except Exception as img_err:
+                    logger.warning(
+                        "Could not upload image asset '%s' for document %s: %s",
+                        img_path.name,
+                        parent_doc_id,
+                        img_err,
+                    )
 
         # 5. Write ingestion record for inspection
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -271,6 +323,7 @@ class CrawlIngestionAdapter:
                     "ingested_at": now_iso,
                     "category_id": str(category_id) if category_id else None,
                     "documents": [r.model_dump(mode="json") for r in results],
+                    "assets": uploaded_assets,
                 }, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning("Could not write ingestion record for %s: %s", page_dir.name, e)
@@ -302,7 +355,6 @@ class CrawlIngestionAdapter:
         created_by_id: UUID | None = None,
         auto_publish: bool = False,
         uploader_id: UUID | None = None,
-        is_image_asset: bool = False,
     ) -> IngestItemResult:
         actual_creator_id = created_by_id or uploader_id
         file_hash = self.compute_sha256(file_bytes)
@@ -342,6 +394,7 @@ class CrawlIngestionAdapter:
                         document_id=d.id,
                         title=safe_title,
                         file_name=safe_file_name,
+                        file_path=d.file_path,
                         file_type=file_type,
                         source_url=source_url,
                         status="skipped",
@@ -368,55 +421,6 @@ class CrawlIngestionAdapter:
         now_utc = datetime.now(timezone.utc)
         doc_id = uuid7()
 
-        # Handle image assets specifically (stored on MinIO and in DB, indexed via Markdown parent)
-        if is_image_asset:
-            object_key = (
-                f"documents/crawler/{now_utc.year:04d}/{now_utc.month:02d}/{doc_id}/{clean_file_name}"
-            )
-            saved_file_key = await self.document_service.storage_service.upload_file(
-                file_bytes=file_bytes,
-                object_name=object_key,
-                content_type=content_type,
-            )
-            doc_status = DocumentStatus.INDEXED if auto_publish else DocumentStatus.UPLOADED
-            doc = Document(
-                id=doc_id,
-                title=safe_title,
-                file_name=clean_file_name,
-                file_path=saved_file_key,
-                file_size=len(file_bytes),
-                file_type=file_type,
-                file_hash=file_hash,
-                source_url=source_url,
-                source_type=DocumentSourceType.CRAWLER,
-                status=doc_status,
-                category_id=category_id,
-                created_by_id=actual_creator_id,
-                total_pages=1,
-                chunk_count=0,
-                error_message=None,
-            )
-            try:
-                created_doc = await self.document_repo.create(doc)
-                await self.document_repo.session.commit()
-            except Exception:
-                await self.document_repo.session.rollback()
-                try:
-                    await self.document_service.storage_service.delete_file(saved_file_key)
-                except Exception:
-                    pass
-                raise
-
-            return IngestItemResult(
-                document_id=created_doc.id,
-                title=created_doc.title,
-                file_name=created_doc.file_name,
-                file_type=file_type,
-                source_url=source_url,
-                status="indexed" if auto_publish else "uploaded",
-                chunks_count=0,
-            )
-
         if auto_publish:
             # Full RAG Ingestion Pipeline for text and PDF
             doc_resp = await self.document_service.upload_and_process_document(
@@ -432,6 +436,7 @@ class CrawlIngestionAdapter:
                 document_id=doc_resp.id,
                 title=doc_resp.title,
                 file_name=doc_resp.file_name,
+                file_path=doc_resp.file_path,
                 file_type=file_type,
                 source_url=source_url,
                 status="indexed",
@@ -480,6 +485,7 @@ class CrawlIngestionAdapter:
                 document_id=created_doc.id,
                 title=created_doc.title,
                 file_name=created_doc.file_name,
+                file_path=created_doc.file_path,
                 file_type=file_type,
                 source_url=source_url,
                 status="uploaded",

@@ -23,6 +23,12 @@ export enum DocumentSourceType {
   CRAWLER = 2,
 }
 
+export interface DocumentAsset {
+  file_name: string
+  file_type: string
+  download_url: string
+}
+
 export interface DocumentMetadata {
   id: string
   title: string
@@ -31,6 +37,7 @@ export interface DocumentMetadata {
   file_size: number
   file_type: string
   file_hash?: string
+  source_url?: string | null
   category?: string | CategoryItem | null
   category_id?: string | null
   status: DocumentStatus
@@ -61,4 +68,6 @@ export interface DocumentChunk {
 
 export interface DocumentDetail extends DocumentMetadata {
   chunks?: DocumentChunk[]
+  related_documents?: DocumentMetadata[]
+  assets?: DocumentAsset[]
 }
