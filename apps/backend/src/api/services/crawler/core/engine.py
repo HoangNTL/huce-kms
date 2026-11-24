@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 import logging
 import time
 from datetime import datetime, timezone
@@ -196,33 +197,8 @@ class CrawlerCoreEngine:
                 pdf_section.append(f"- [{p.file_name}](./{p.local_path})")
             markdown_content += "\n".join(pdf_section)
 
-        # 7.1. Enrich Markdown with OCR text from downloaded genuine images
-        successful_img_items = [img for img in crawled_images if img.status == "success"]
-        if successful_img_items and settings.GEMINI_API_KEY:
-            try:
-                from api.services.rag.parser import DocumentParser
-
-                ocr_sections = []
-                for img_item in successful_img_items:
-                    img_file = page_dir / img_item.local_path
-                    if img_file.exists() and img_file.stat().st_size >= 15 * 1024:
-                        extracted = await DocumentParser.ocr_image_bytes(
-                            image_bytes=img_file.read_bytes(),
-                            mime_type=img_item.mime_type or "image/png",
-                            context_label=f"crawled image '{img_item.file_name}'",
-                        )
-                        if extracted and len(extracted.strip()) > 40:
-                            ocr_sections.append(
-                                f"### Văn bản trích xuất từ ảnh ({img_item.file_name}):\n\n{extracted.strip()}"
-                            )
-                if ocr_sections:
-                    markdown_content += (
-                        "\n\n---\n\n## Nội dung trích xuất từ văn bản đính kèm (Ảnh scan)\n\n"
-                        + "\n\n".join(ocr_sections)
-                    )
-            except Exception as e:
-                logger.warning("Failed to perform OCR enrichment on crawled images: %s", e)
-
+        # Note: OCR enrichment for scanned images is deferred to the Ingestion phase
+        # to ensure fast crawling speeds, avoid API timeout, and prevent quota waste on discarded drafts.
         content_hash = Deduplicator.compute_content_hash(markdown_content)
 
         # 8. Create PageMetadata manifest
@@ -272,6 +248,7 @@ class CrawlerCoreEngine:
             url=url,
             status=crawl_status,
             title=title,
+            page_hash=page_dir.name,
             artifact_dir=page_dir,
             markdown_path=page_dir / "content.md",
             metadata_path=page_dir / "metadata.json",
@@ -287,8 +264,9 @@ class CrawlerCoreEngine:
         max_concurrency: int = 2,
         skip_media: bool = False,
         session_id: str | None = None,
+        on_item_completed: Callable[[CrawlResult, int, int], Awaitable[None]] | None = None,
     ) -> BatchCrawlResult:
-        """Crawl a batch of URLs with bounded concurrency and session record keeping."""
+        """Crawl a batch of URLs with bounded concurrency, real-time progress callbacks, and session record keeping."""
         started_at = datetime.now(timezone.utc).isoformat()
         start_time = time.perf_counter()
         active_session_id = session_id or datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
@@ -301,25 +279,34 @@ class CrawlerCoreEngine:
             "completed_at": None,
             "duration_seconds": 0.0,
             "total_urls": len(urls),
+            "completed_urls": 0,
             "successful": 0,
             "failed": 0,
         }
         self.storage.save_session(active_session_id, initial_session_info, [])
 
         semaphore = asyncio.Semaphore(max_concurrency)
+        results: list[CrawlResult] = []
+        progress_lock = asyncio.Lock()
+        completed_count = 0
+        successful_count = 0
+        failed_count = 0
 
         async def _crawl_single(target_url: str) -> CrawlResult:
+            nonlocal completed_count, successful_count, failed_count
             async with semaphore:
                 try:
-                    return await self.crawl_url(
+                    res = await self.crawl_url(
                         url=target_url,
                         skip_media=skip_media,
                         session_id=active_session_id,
                     )
+                except asyncio.CancelledError:
+                    raise
                 except Exception as exc:
                     logger.error("Failed crawling %s in batch: %s", target_url, exc, exc_info=True)
                     page_dir = self.storage.get_page_dir(target_url)
-                    return CrawlResult(
+                    res = CrawlResult(
                         url=target_url,
                         status="failed",
                         title=target_url,
@@ -328,15 +315,67 @@ class CrawlerCoreEngine:
                         errors=[str(exc)],
                     )
 
-        tasks = [_crawl_single(u) for u in urls]
-        gathered_results = await asyncio.gather(*tasks)
-        results = list(gathered_results)
+                async with progress_lock:
+                    results.append(res)
+                    completed_count += 1
+                    if res.status in ("success", "partial"):
+                        successful_count += 1
+                    else:
+                        failed_count += 1
+
+                    # Realtime progress update on disk (lightweight session.json only)
+                    prog_info = {
+                        "session_id": active_session_id,
+                        "status": "in_progress",
+                        "started_at": started_at,
+                        "completed_at": None,
+                        "duration_seconds": round(time.perf_counter() - start_time, 2),
+                        "total_urls": len(urls),
+                        "completed_urls": completed_count,
+                        "successful": successful_count,
+                        "failed": failed_count,
+                    }
+                    self.storage.save_session(active_session_id, prog_info, results=None)
+
+                if on_item_completed:
+                    try:
+                        await on_item_completed(res, completed_count, len(urls))
+                    except Exception as cb_err:
+                        logger.warning("Error in on_item_completed callback: %s", cb_err)
+
+                return res
+
+        tasks = [asyncio.create_task(_crawl_single(u)) for u in urls]
+        try:
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            logger.warning("Batch crawl session '%s' received cancellation signal.", active_session_id)
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Save cancelled snapshot on disk
+            cancelled_info = {
+                "session_id": active_session_id,
+                "status": "cancelled",
+                "started_at": started_at,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "duration_seconds": round(time.perf_counter() - start_time, 2),
+                "total_urls": len(urls),
+                "completed_urls": completed_count,
+                "successful": successful_count,
+                "failed": failed_count,
+            }
+            self.storage.save_session(
+                active_session_id,
+                cancelled_info,
+                [r.model_dump(mode="json") for r in results],
+            )
+            raise
 
         completed_at = datetime.now(timezone.utc).isoformat()
         duration_seconds = round(time.perf_counter() - start_time, 2)
-
-        successful = sum(1 for r in results if r.status in ("success", "partial"))
-        failed = sum(1 for r in results if r.status == "failed")
 
         session_info = {
             "session_id": active_session_id,
@@ -345,8 +384,9 @@ class CrawlerCoreEngine:
             "completed_at": completed_at,
             "duration_seconds": duration_seconds,
             "total_urls": len(urls),
-            "successful": successful,
-            "failed": failed,
+            "completed_urls": completed_count,
+            "successful": successful_count,
+            "failed": failed_count,
         }
         item_results = [r.model_dump(mode="json") for r in results]
         self.storage.save_session(active_session_id, session_info, item_results)
@@ -354,8 +394,8 @@ class CrawlerCoreEngine:
         return BatchCrawlResult(
             session_id=active_session_id,
             total_urls=len(urls),
-            successful=successful,
-            failed=failed,
+            successful=successful_count,
+            failed=failed_count,
             started_at=started_at,
             completed_at=completed_at,
             duration_seconds=duration_seconds,

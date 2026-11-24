@@ -9,7 +9,7 @@ import type {
   ApproveQueuePayload,
   IngestPayload,
   StartQueuePayload,
-  StartQueueResult,
+  StartQueueResponse,
   SessionDetailData,
 } from "../types"
 
@@ -37,8 +37,12 @@ export const crawlerService = {
     )
   },
 
-  async startQueue(payload: StartQueuePayload = {}): Promise<StartQueueResult> {
-    return apiClient.post<StartQueueResult>("/crawler/queue/start", payload)
+  async startQueue(payload: StartQueuePayload = {}): Promise<StartQueueResponse> {
+    return apiClient.post<StartQueueResponse>("/crawler/queue/start", payload)
+  },
+
+  async cancelSession(sessionId: string): Promise<{ session_id: string; status: string }> {
+    return apiClient.post<{ session_id: string; status: string }>(`/crawler/sessions/${sessionId}/cancel`)
   },
 
   async clearQueue(): Promise<{ approved_total: number; approved_urls: string[] }> {

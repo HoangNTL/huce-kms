@@ -36,6 +36,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("[STARTUP] Storage service initialization check: %s", e)
 
+    # Recover any interrupted crawler sessions left over from previous process shutdown
+    try:
+        from api.repositories.crawl_session import CrawlSessionRepository
+        recovered_count = await CrawlSessionRepository.recover_interrupted_sessions()
+        if recovered_count > 0:
+            logger.info("[STARTUP] Recovered %d interrupted crawl session(s).", recovered_count)
+    except Exception as e:
+        logger.warning("[STARTUP] Interrupted crawl sessions recovery: %s", e)
+
     app.state.is_healthy = True
 
     # Yield control to FastAPI request handling

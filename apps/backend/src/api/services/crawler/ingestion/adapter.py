@@ -6,9 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
+from sqlalchemy import update
+
 from api.constants.enums import DocumentSourceType, DocumentStatus
 from api.core.config import settings
 from api.core.database import uuid7
+from api.models.crawl_session import CrawlSessionItem
 from api.models.document import Document
 from api.repositories.category import CategoryRepository
 from api.repositories.document import DocumentRepository
@@ -196,7 +199,8 @@ class CrawlIngestionAdapter:
         for pdf_path in payload.pdf_files:
             try:
                 pdf_bytes = pdf_path.read_bytes()
-                pdf_title = f"{payload.metadata.content.title.strip()} - Phụ lục ({pdf_path.name})"
+                raw_pdf_title = f"{payload.metadata.content.title.strip()} - Phụ lục ({pdf_path.name})"
+                pdf_title = (raw_pdf_title[:251] + "...") if len(raw_pdf_title) > 255 else raw_pdf_title
                 pdf_result = await self._ingest_file(
                     file_bytes=pdf_bytes,
                     file_name=pdf_path.name,
@@ -212,8 +216,8 @@ class CrawlIngestionAdapter:
                 logger.error("Failed to ingest PDF '%s': %s", pdf_path, e, exc_info=True)
                 results.append(
                     IngestItemResult(
-                        title=f"Phụ lục {pdf_path.name}",
-                        file_name=pdf_path.name,
+                        title=f"Phụ lục {pdf_path.name}"[:255],
+                        file_name=pdf_path.name[:255],
                         file_type="pdf",
                         source_url=payload.metadata.source.url,
                         status="failed",
@@ -221,17 +225,69 @@ class CrawlIngestionAdapter:
                     )
                 )
 
-        # 3. Write ingestion record for inspection
+        # 4. Process Attached Images (Legal Evidence / Scanned Documents)
+        for img_path in payload.image_files:
+            try:
+                if not img_path.exists() or img_path.stat().st_size < 10 * 1024:
+                    # Skip tiny thumbnails/logos under 10KB
+                    continue
+                img_bytes = img_path.read_bytes()
+                ext = img_path.suffix.lower()
+                img_ext_clean = ext.lstrip(".") or "jpg"
+                raw_img_title = f"{payload.metadata.content.title.strip()} - Bản scan ({img_path.name})"
+                img_title = (raw_img_title[:251] + "...") if len(raw_img_title) > 255 else raw_img_title
+                img_result = await self._ingest_file(
+                    file_bytes=img_bytes,
+                    file_name=img_path.name,
+                    title=img_title,
+                    file_type=img_ext_clean,
+                    source_url=payload.metadata.source.url,
+                    category_id=category_id,
+                    created_by_id=actual_creator_id,
+                    auto_publish=auto_publish,
+                    is_image_asset=True,
+                )
+                results.append(img_result)
+            except Exception as e:
+                logger.error("Failed to ingest image '%s': %s", img_path, e, exc_info=True)
+                results.append(
+                    IngestItemResult(
+                        title=f"Bản scan {img_path.name}"[:255],
+                        file_name=img_path.name[:255],
+                        file_type="image",
+                        source_url=payload.metadata.source.url,
+                        status="failed",
+                        error=str(e),
+                    )
+                )
+
+        # 5. Write ingestion record for inspection
+        now_iso = datetime.now(timezone.utc).isoformat()
+        now_dt = datetime.now(timezone.utc)
         ingestion_record_path = page_dir / "ingestion.json"
         try:
             with open(ingestion_record_path, "w", encoding="utf-8") as f:
                 json.dump({
-                    "ingested_at": datetime.now(timezone.utc).isoformat(),
+                    "ingested_at": now_iso,
                     "category_id": str(category_id) if category_id else None,
                     "documents": [r.model_dump(mode="json") for r in results],
                 }, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning("Could not write ingestion record for %s: %s", page_dir.name, e)
+
+        # 6. Sync ingestion status to database crawl_session_items only if at least one document succeeded
+        has_successful_doc = any(r.status in ("uploaded", "indexed") for r in results)
+        if has_successful_doc:
+            try:
+                stmt = (
+                    update(CrawlSessionItem)
+                    .where(CrawlSessionItem.page_hash == page_dir.name)
+                    .values(is_ingested=True, ingested_at=now_dt)
+                )
+                await self.document_repo.session.execute(stmt)
+                await self.document_repo.session.commit()
+            except Exception as db_sync_err:
+                logger.debug("Could not update crawl_session_item for %s: %s", page_dir.name, db_sync_err)
 
         return results
 
@@ -246,9 +302,20 @@ class CrawlIngestionAdapter:
         created_by_id: UUID | None = None,
         auto_publish: bool = False,
         uploader_id: UUID | None = None,
+        is_image_asset: bool = False,
     ) -> IngestItemResult:
         actual_creator_id = created_by_id or uploader_id
         file_hash = self.compute_sha256(file_bytes)
+
+        # Truncate title and file_name if exceeding database column limits (255)
+        safe_title = (title or "Untitled").strip()
+        if len(safe_title) > 255:
+            safe_title = safe_title[:251] + "..."
+
+        safe_file_name = Path(file_name).name or "document"
+        if len(safe_file_name) > 255:
+            ext = Path(safe_file_name).suffix
+            safe_file_name = safe_file_name[: 255 - len(ext)] + ext
 
         # 1. Check duplicate by file content hash
         existing = await self.document_repo.get_by_file_hash(file_hash)
@@ -256,8 +323,8 @@ class CrawlIngestionAdapter:
             logger.info("Document already exists (hash=%s, id=%s), skipping.", file_hash, existing.id)
             return IngestItemResult(
                 document_id=existing.id,
-                title=title,
-                file_name=file_name,
+                title=safe_title,
+                file_name=safe_file_name,
                 file_type=file_type,
                 source_url=source_url,
                 status="skipped",
@@ -269,12 +336,12 @@ class CrawlIngestionAdapter:
         if source_url:
             existing_by_url = await self.document_repo.get_by_source_url(source_url)
             for d in existing_by_url:
-                if d.file_type == file_type and (d.file_name == file_name or d.title == title):
+                if d.file_type == file_type and (d.file_name == safe_file_name or d.title == safe_title):
                     logger.info("Document from source_url '%s' already exists (id=%s), skipping.", source_url, d.id)
                     return IngestItemResult(
                         document_id=d.id,
-                        title=title,
-                        file_name=file_name,
+                        title=safe_title,
+                        file_name=safe_file_name,
                         file_type=file_type,
                         source_url=source_url,
                         status="skipped",
@@ -282,12 +349,80 @@ class CrawlIngestionAdapter:
                         error="Already exists in system (source URL match)",
                     )
 
+        # Map content types accurately
+        clean_file_name = safe_file_name
+        suffix = Path(safe_file_name).suffix.lower()
+        if not suffix:
+            suffix = f".{file_type}" if file_type else ".txt"
+
+        content_type_map = {
+            ".pdf": "application/pdf",
+            ".txt": "text/plain; charset=utf-8",
+            ".md": "text/markdown; charset=utf-8",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+        }
+        content_type = content_type_map.get(suffix, "application/octet-stream")
+        now_utc = datetime.now(timezone.utc)
+        doc_id = uuid7()
+
+        # Handle image assets specifically (stored on MinIO and in DB, indexed via Markdown parent)
+        if is_image_asset:
+            object_key = (
+                f"documents/crawler/{now_utc.year:04d}/{now_utc.month:02d}/{doc_id}/{clean_file_name}"
+            )
+            saved_file_key = await self.document_service.storage_service.upload_file(
+                file_bytes=file_bytes,
+                object_name=object_key,
+                content_type=content_type,
+            )
+            doc_status = DocumentStatus.INDEXED if auto_publish else DocumentStatus.UPLOADED
+            doc = Document(
+                id=doc_id,
+                title=safe_title,
+                file_name=clean_file_name,
+                file_path=saved_file_key,
+                file_size=len(file_bytes),
+                file_type=file_type,
+                file_hash=file_hash,
+                source_url=source_url,
+                source_type=DocumentSourceType.CRAWLER,
+                status=doc_status,
+                category_id=category_id,
+                created_by_id=actual_creator_id,
+                total_pages=1,
+                chunk_count=0,
+                error_message=None,
+            )
+            try:
+                created_doc = await self.document_repo.create(doc)
+                await self.document_repo.session.commit()
+            except Exception:
+                await self.document_repo.session.rollback()
+                try:
+                    await self.document_service.storage_service.delete_file(saved_file_key)
+                except Exception:
+                    pass
+                raise
+
+            return IngestItemResult(
+                document_id=created_doc.id,
+                title=created_doc.title,
+                file_name=created_doc.file_name,
+                file_type=file_type,
+                source_url=source_url,
+                status="indexed" if auto_publish else "uploaded",
+                chunks_count=0,
+            )
+
         if auto_publish:
-            # Full RAG Ingestion Pipeline
+            # Full RAG Ingestion Pipeline for text and PDF
             doc_resp = await self.document_service.upload_and_process_document(
                 file_bytes=file_bytes,
-                file_name=file_name,
-                title=title,
+                file_name=safe_file_name,
+                title=safe_title,
                 category_id=category_id,
                 created_by_id=actual_creator_id,
                 source_url=source_url,
@@ -303,20 +438,9 @@ class CrawlIngestionAdapter:
                 chunks_count=doc_resp.chunk_count,
             )
         else:
-            # Staging / Draft Mode (Save record & file via StorageService, do NOT embed or push to Qdrant)
-            clean_file_name = Path(file_name).name or "document"
-            suffix = Path(file_name).suffix.lower()
-            if not suffix:
-                suffix = f".{file_type}" if file_type else ".txt"
-
-            content_type_map = {
-                ".pdf": "application/pdf",
-                ".txt": "text/plain; charset=utf-8",
-                ".md": "text/markdown; charset=utf-8",
-            }
-            content_type = content_type_map.get(suffix, "application/octet-stream")
-            now_utc = datetime.now(timezone.utc)
-            object_key = f"documents/{now_utc.strftime('%Y/%m')}/{uuid7()}{suffix}"
+            # Staging / Draft Mode with standardized hierarchical MinIO path:
+            # documents/crawler/{YYYY}/{MM}/{document_id}/{clean_file_name}
+            object_key = f"documents/crawler/{now_utc.year:04d}/{now_utc.month:02d}/{doc_id}/{clean_file_name}"
 
             saved_file_key = await self.document_service.storage_service.upload_file(
                 file_bytes=file_bytes,
@@ -325,7 +449,8 @@ class CrawlIngestionAdapter:
             )
 
             doc = Document(
-                title=title,
+                id=doc_id,
+                title=safe_title,
                 file_name=clean_file_name,
                 file_path=saved_file_key,
                 file_size=len(file_bytes),
@@ -340,7 +465,17 @@ class CrawlIngestionAdapter:
                 chunk_count=0,
                 error_message=None,
             )
-            created_doc = await self.document_repo.create(doc)
+            try:
+                created_doc = await self.document_repo.create(doc)
+                await self.document_repo.session.commit()
+            except Exception:
+                await self.document_repo.session.rollback()
+                try:
+                    await self.document_service.storage_service.delete_file(saved_file_key)
+                except Exception:
+                    pass
+                raise
+
             return IngestItemResult(
                 document_id=created_doc.id,
                 title=created_doc.title,

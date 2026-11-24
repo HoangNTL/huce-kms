@@ -1,5 +1,7 @@
 from api.constants.enums import (
     ChunkStrategy,
+    CrawlItemStatus,
+    CrawlSessionStatus,
     CrawlerMediaType,
     DocumentSourceType,
     DocumentStatus,
@@ -22,4 +24,6 @@ __all__ = [
     "CrawlerMediaType",
     "PageCrawlStatus",
     "ReviewQueueStatus",
+    "CrawlSessionStatus",
+    "CrawlItemStatus",
 ]

@@ -3,16 +3,13 @@
 import * as React from "react"
 import {
   ExternalLink,
-  FileText,
-  Image as ImageIcon,
-  Sparkles,
   Search,
-  Database,
-  Download,
   Copy,
   Check,
+  StopCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -85,10 +82,11 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
   const [isLoading, setIsLoading] = React.useState(true)
   const [isIngestingSession, setIsIngestingSession] = React.useState(false)
   const [isIngestingItem, setIsIngestingItem] = React.useState(false)
+  const [isCancelling, setIsCancelling] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [filterMode, setFilterMode] = React.useState<"ALL" | "INGESTED" | "PDF" | "FAILED">("ALL")
+  const [filterMode, setFilterMode] = React.useState<"ALL" | "INGESTED" | "PDF" | "IMAGE" | "FAILED">("ALL")
   const [selectedIdx, setSelectedIdx] = React.useState(0)
   const [detailTab, setDetailTab] = React.useState<string>("markdown")
 
@@ -117,6 +115,61 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
       ignore = true
     }
   }, [sessionId])
+
+  // Periodic polling if session is in progress
+  React.useEffect(() => {
+    const sessionStatus = String(data?.session?.status || "").toLowerCase()
+    if (sessionStatus !== "in_progress" && sessionStatus !== "pending") return
+
+    let isFinished = false
+    let intervalId: NodeJS.Timeout | null = null
+
+    const stopPolling = () => {
+      isFinished = true
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+
+    const poll = async () => {
+      if (isFinished) return
+      try {
+        const res = await crawlerService.getSessionDetails(sessionId)
+        setData(res)
+        const updatedStatus = String(res.session?.status || "").toLowerCase()
+        if (["completed", "failed", "cancelled", "interrupted"].includes(updatedStatus)) {
+          stopPolling()
+        }
+      } catch {
+        // tolerate network blip
+      }
+    }
+
+    intervalId = setInterval(poll, 2500)
+
+    return () => {
+      stopPolling()
+    }
+  }, [sessionId, data?.session?.status])
+
+  // Cancel running session handler
+  const handleCancelSession = async () => {
+    if (isCancelling) return
+    setIsCancelling(true)
+    try {
+      await crawlerService.cancelSession(sessionId)
+      toast.info("Đã gửi tín hiệu hủy phiên thu thập.")
+      const res = await crawlerService.getSessionDetails(sessionId)
+      setData(res)
+    } catch (err) {
+      toast.error("Hủy phiên thu thập thất bại", {
+        description: err instanceof Error ? err.message : "Vui lòng thử lại.",
+      })
+    } finally {
+      setIsCancelling(false)
+    }
+  }
 
   // Load categories
   React.useEffect(() => {
@@ -181,6 +234,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
       if (filterMode === "INGESTED") return Boolean(item.is_ingested)
       if (filterMode === "PDF") return item.pdf_count > 0
+      if (filterMode === "IMAGE") return item.image_count > 0
       if (filterMode === "FAILED") return item.status !== "success"
       return true
     })
@@ -210,9 +264,13 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
   const totalItems = data?.items?.length || 0
   const ingestedCount = data?.items?.filter((i) => i.is_ingested).length || 0
   const pdfItemsCount = data?.items?.filter((i) => i.pdf_count > 0).length || 0
+  const imageItemsCount = data?.items?.filter((i) => i.image_count > 0).length || 0
   const failedItemsCount = data?.items?.filter((i) => i.status !== "success").length || 0
   const sessionStartTime = String(data?.session?.started_at || data?.session?.created_at || "")
-  const isFiltering = searchQuery.trim() !== "" || filterMode !== "ALL"
+  const sessionStatus = String(data?.session?.status || "completed").toLowerCase()
+  const totalUrls = Number(data?.session?.total_urls || totalItems)
+  const completedUrls = Number(data?.session?.completed_urls || totalItems)
+  const isRunning = sessionStatus === "in_progress" || sessionStatus === "pending"
 
   if (isLoading) {
     return (
@@ -245,29 +303,94 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
   return (
     <div className="space-y-4">
-      {/* 1. Header Bar: Compact & Non-repetitive */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-3">
-        <div>
-          <h1 className="font-heading text-lg font-bold tracking-tight text-heading">
-            Phiên thu thập: <span className="font-mono text-brand-primary">{sessionId}</span>
-          </h1>
-          <p className="mt-0.5 text-xs text-muted">
-            {formatCompactDate(sessionStartTime)} · {totalItems} bài · {ingestedCount} đã lưu
-          </p>
+      {/* 1. Header Bar: Clean, Unified & Professional */}
+      <div className="flex flex-col gap-2 border-b border-border/60 pb-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
+                Phiên <span className="font-mono text-brand-primary">{sessionId}</span>
+              </h1>
+              {isRunning ? (
+                <Badge
+                  variant="outline"
+                  className="inline-flex items-center gap-1.5 text-blue-700 bg-blue-50 border-blue-200 font-medium"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  <span>Đang chạy ({completedUrls}/{totalUrls})</span>
+                </Badge>
+              ) : sessionStatus === "completed" ? (
+                <Badge
+                  variant="outline"
+                  className="text-emerald-700 bg-emerald-50 border-emerald-200 font-medium"
+                >
+                  Hoàn thành
+                </Badge>
+              ) : sessionStatus === "cancelled" ? (
+                <Badge
+                  variant="outline"
+                  className="text-slate-600 bg-slate-100 border-slate-200 font-medium"
+                >
+                  Đã hủy
+                </Badge>
+              ) : sessionStatus === "interrupted" ? (
+                <Badge
+                  variant="outline"
+                  className="text-amber-700 bg-amber-50 border-amber-200 font-medium"
+                >
+                  Bị gián đoạn
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="text-rose-700 bg-rose-50 border-rose-200 font-medium"
+                >
+                  Thất bại
+                </Badge>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted">
+              {formatCompactDate(sessionStartTime)} · {totalItems} bài đã thu thập · {ingestedCount} đã lưu
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isRunning && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelSession}
+                disabled={isCancelling}
+                loading={isCancelling}
+                className="gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 shadow-xs"
+              >
+                <StopCircle className="h-3.5 w-3.5" />
+                <span>Hủy phiên</span>
+              </Button>
+            )}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleIngestSession}
+              disabled={isRunning || isIngestingSession}
+              loading={isIngestingSession}
+              className="bg-brand-primary text-white hover:bg-brand-primary/90 text-xs font-semibold shadow-xs"
+            >
+              <span>Lưu tất cả</span>
+            </Button>
+          </div>
         </div>
 
-        <div>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleIngestSession}
-            loading={isIngestingSession}
-            className="gap-1.5 bg-brand-primary text-white hover:bg-brand-primary/90 text-xs font-semibold shadow-xs"
-          >
-            <Database className="h-3.5 w-3.5" />
-            <span>Lưu tất cả</span>
-          </Button>
-        </div>
+        {isRunning && totalUrls > 0 && (
+          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div
+              className="bg-brand-primary h-1.5 rounded-full transition-all duration-300"
+              style={{
+                width: `${Math.min(100, Math.round((completedUrls / totalUrls) * 100))}%`,
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* 2. Main Master - Detail Layout */}
@@ -288,54 +411,73 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
             />
           </div>
 
-          {/* Clean, Non-redundant Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {/* Clean Segmented Filter Tabs */}
+          <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs w-fit">
             <button
               type="button"
               onClick={() => {
                 setFilterMode("ALL")
                 setSelectedIdx(0)
               }}
-              className={`px-2.5 py-1 rounded-md transition-colors font-medium text-xs cursor-pointer ${
+              className={`px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
                 filterMode === "ALL"
-                  ? "bg-brand-primary text-white shadow-xs"
-                  : "bg-surface border border-border text-muted hover:text-heading"
+                  ? "bg-white dark:bg-slate-900 text-heading shadow-2xs font-semibold"
+                  : "text-muted hover:text-heading"
               }`}
             >
               Tất cả ({totalItems})
             </button>
 
-            {ingestedCount > 0 && (
+            {ingestedCount > 0 && ingestedCount < totalItems && (
               <button
                 type="button"
                 onClick={() => {
                   setFilterMode("INGESTED")
                   setSelectedIdx(0)
                 }}
-                className={`px-2.5 py-1 rounded-md transition-colors font-medium text-xs cursor-pointer ${
+                className={`px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
                   filterMode === "INGESTED"
-                    ? "bg-brand-primary text-white shadow-xs"
-                    : "bg-surface border border-border text-muted hover:text-heading"
+                    ? "bg-white dark:bg-slate-900 text-heading shadow-2xs font-semibold"
+                    : "text-muted hover:text-heading"
                 }`}
               >
                 Đã lưu ({ingestedCount})
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setFilterMode("PDF")
-                setSelectedIdx(0)
-              }}
-              className={`px-2.5 py-1 rounded-md transition-colors font-medium text-xs cursor-pointer ${
-                filterMode === "PDF"
-                  ? "bg-brand-primary text-white shadow-xs"
-                  : "bg-surface border border-border text-muted hover:text-heading"
-              }`}
-            >
-              Có PDF ({pdfItemsCount})
-            </button>
+            {pdfItemsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode("PDF")
+                  setSelectedIdx(0)
+                }}
+                className={`px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                  filterMode === "PDF"
+                    ? "bg-white dark:bg-slate-900 text-heading shadow-2xs font-semibold"
+                    : "text-muted hover:text-heading"
+                }`}
+              >
+                Có PDF ({pdfItemsCount})
+              </button>
+            )}
+
+            {imageItemsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode("IMAGE")
+                  setSelectedIdx(0)
+                }}
+                className={`px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                  filterMode === "IMAGE"
+                    ? "bg-white dark:bg-slate-900 text-heading shadow-2xs font-semibold"
+                    : "text-muted hover:text-heading"
+                }`}
+              >
+                Có ảnh ({imageItemsCount})
+              </button>
+            )}
 
             {failedItemsCount > 0 && (
               <button
@@ -344,23 +486,16 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                   setFilterMode("FAILED")
                   setSelectedIdx(0)
                 }}
-                className={`px-2.5 py-1 rounded-md transition-colors font-medium text-xs cursor-pointer ${
+                className={`px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
                   filterMode === "FAILED"
-                    ? "bg-rose-600 text-white shadow-xs"
-                    : "bg-surface border border-border text-rose-600 hover:text-rose-700"
+                    ? "bg-white dark:bg-slate-900 text-rose-600 shadow-2xs font-semibold"
+                    : "text-rose-600/80 hover:text-rose-700"
                 }`}
               >
                 Lỗi ({failedItemsCount})
               </button>
             )}
           </div>
-
-          {/* Show counter only when searching or filtering */}
-          {isFiltering && (
-            <div className="text-2xs text-muted px-1">
-              Hiển thị {filteredItems.length}/{totalItems} bài viết
-            </div>
-          )}
 
           {/* Cards List: Clean & Compact Specification */}
           <div className="space-y-2 max-h-[calc(100vh-210px)] overflow-y-auto pr-1">
@@ -383,56 +518,40 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                         : "border-border/70 bg-surface hover:border-slate-300 hover:bg-slate-50/50"
                     }`}
                   >
-                    {/* Structure: [chấm màu] Tiêu đề */}
-                    <div className="flex items-start gap-2">
-                      <span
-                        className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                          !isSuccess
-                            ? "bg-rose-500"
-                            : item.is_meaningful_markdown
-                            ? "bg-blue-500"
-                            : "bg-amber-500"
-                        }`}
-                        title={
-                          !isSuccess
-                            ? "Bóc tách lỗi"
-                            : item.is_meaningful_markdown
-                            ? "Lưu văn bản & PDF"
-                            : "Chỉ lưu tệp PDF"
-                        }
-                      />
-
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <h3 className="text-xs font-semibold leading-snug text-heading line-clamp-2">
+                    <div className="space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-xs font-semibold leading-snug text-heading line-clamp-2 flex-1">
                           {item.title || item.url}
                         </h3>
-
-                        {/* Bottom row: domain + icons + count */}
-                        <div className="flex items-center justify-between text-2xs text-muted pt-0.5">
-                          <span className="truncate max-w-[140px] font-mono text-slate-500" title={item.url}>
-                            {getDomain(item.url)}
+                        {!isSuccess && (
+                          <span className="shrink-0 text-3xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                            Lỗi
                           </span>
+                        )}
+                      </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            {item.pdf_count > 0 && (
-                              <span className="inline-flex items-center gap-0.5" title={`${item.pdf_count} tệp PDF`}>
-                                <FileText className="h-3 w-3 text-slate-400" />
-                                <span>{item.pdf_count}</span>
-                              </span>
-                            )}
-                            {item.image_count > 0 && (
-                              <span className="inline-flex items-center gap-0.5" title={`${item.image_count} hình ảnh`}>
-                                <ImageIcon className="h-3 w-3 text-slate-400" />
-                                <span>{item.image_count}</span>
-                              </span>
-                            )}
-                            {item.is_ingested && (
-                              <span className="inline-flex items-center gap-0.5 text-emerald-600 font-medium">
-                                <Check className="h-3 w-3" />
-                                <span>Đã lưu</span>
-                              </span>
-                            )}
-                          </div>
+                      {/* Bottom row: domain + clean meta tags */}
+                      <div className="flex items-center justify-between text-2xs text-muted pt-0.5">
+                        <span className="truncate max-w-[140px] font-mono text-slate-500" title={item.url}>
+                          {getDomain(item.url)}
+                        </span>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {item.pdf_count > 0 && (
+                            <span className="text-2xs text-slate-600 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono font-medium">
+                              {item.pdf_count} PDF
+                            </span>
+                          )}
+                          {item.image_count > 0 && (
+                            <span className="text-2xs text-slate-600 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono font-medium">
+                              {item.image_count} ảnh
+                            </span>
+                          )}
+                          {item.is_ingested && (
+                            <span className="text-2xs text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium">
+                              Đã lưu
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -480,7 +599,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                       disabled={selectedItem.is_ingested}
                       className="h-8 rounded-lg border border-border bg-white dark:bg-slate-900 px-2.5 text-xs text-heading focus:border-brand-primary focus:outline-none"
                     >
-                      <option value="">Chưa phân loại (Mặc định)</option>
+                      <option value="">Chưa phân loại</option>
                       {categories.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -502,9 +621,8 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                         onClick={() => handleIngestSingleItem(selectedItem.page_hash)}
                         loading={isIngestingItem}
                         disabled={!selectedItem.page_hash}
-                        className="gap-1.5 bg-brand-primary text-white hover:bg-brand-primary/90 text-xs font-semibold shadow-xs"
+                        className="bg-brand-primary text-white hover:bg-brand-primary/90 text-xs font-semibold shadow-xs"
                       >
-                        <Database className="h-3.5 w-3.5" />
                         <span>Lưu bài này</span>
                       </Button>
                     )}
@@ -551,13 +669,6 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
                   {/* Tab 1: Markdown Content */}
                   <TabsContent value="markdown" className="w-full">
-                    {selectedItem.has_ocr && (
-                      <div className="mb-2.5 inline-flex items-center gap-1.5 rounded-md bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 px-2.5 py-1 text-xs text-purple-700 dark:text-purple-300">
-                        <Sparkles className="h-3.5 w-3.5 text-purple-600" />
-                        <span>Trích xuất bằng AI (Gemini Vision)</span>
-                      </div>
-                    )}
-
                     {selectedItem.markdown_content ? (
                       <div className="rounded-xl border border-border bg-slate-50/50 p-4 max-h-[550px] overflow-y-auto">
                         <pre className="font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">
@@ -584,7 +695,9 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                               className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white dark:bg-slate-900 p-3 transition-colors hover:border-slate-300"
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                                <span className="text-2xs font-bold text-rose-600 bg-rose-50 border border-rose-200/70 px-1.5 py-0.5 rounded shrink-0">
+                                  PDF
+                                </span>
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-heading truncate" title={pdf.name}>
                                     {truncateFilename(pdf.name, 36)}
@@ -595,21 +708,12 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
 
                               <div className="flex items-center gap-2 shrink-0">
                                 {fullUrl && (
-                                  <>
-                                    <a href={fullUrl} target="_blank" rel="noreferrer">
-                                      <Button variant="outline" size="xs" className="gap-1 text-xs">
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                        <span>Mở tệp PDF</span>
-                                      </Button>
-                                    </a>
-
-                                    <a href={fullUrl} download={pdf.name}>
-                                      <Button variant="outline" size="xs" className="gap-1 text-xs">
-                                        <Download className="h-3.5 w-3.5" />
-                                        <span>Tải về</span>
-                                      </Button>
-                                    </a>
-                                  </>
+                                  <a href={fullUrl} target="_blank" rel="noreferrer">
+                                    <Button variant="outline" size="xs" className="gap-1.5 text-xs">
+                                      <span>Xem tệp PDF</span>
+                                      <ExternalLink className="h-3 w-3 text-muted" />
+                                    </Button>
+                                  </a>
                                 )}
                               </div>
                             </div>
@@ -619,45 +723,56 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                     </TabsContent>
                   )}
 
-                  {/* Tab 3: Crawled Images & OCR */}
+                  {/* Tab 3: Crawled Images (Document Scans) */}
                   {selectedItem.image_count > 0 && (
                     <TabsContent value="images" className="w-full space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                         {selectedItem.images.map((img, iIdx) => {
                           const fullUrl = img.url ? crawlerService.getMediaUrl(img.url) : null
+                          const pageLabel = selectedItem.image_count > 1 ? `Trang ${iIdx + 1}` : "Tài liệu scan"
 
                           return (
                             <div
                               key={iIdx}
-                              className="rounded-xl border border-border bg-white dark:bg-slate-900 p-3 space-y-2 overflow-hidden"
+                              className="rounded-xl border border-border bg-white dark:bg-slate-900 p-3 space-y-2.5 transition-colors hover:border-slate-300"
                             >
-                              <div className="flex items-center justify-between text-2xs text-muted">
-                                <span className="font-semibold text-heading truncate max-w-[200px]" title={img.name}>
-                                  {truncateFilename(img.name, 28)}
-                                </span>
-                                <span>{formatBytes(img.size)}</span>
-                              </div>
-
-                              {fullUrl ? (
-                                <div className="relative group rounded-lg overflow-hidden border border-border/60 bg-slate-100 flex items-center justify-center max-h-56">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={fullUrl}
-                                    alt={img.name}
-                                    className="max-h-56 w-auto object-contain transition-transform duration-200 group-hover:scale-105"
-                                  />
+                              {/* Header: Page info & Clear direct action */}
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-semibold text-heading text-xs">
+                                    {pageLabel}
+                                  </span>
+                                  <span className="text-2xs text-muted">
+                                    · {formatBytes(img.size)}
+                                  </span>
+                                </div>
+                                {fullUrl && (
                                   <a
                                     href={fullUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-medium gap-1"
+                                    className="inline-flex items-center gap-1 text-2xs font-medium text-brand-primary hover:underline shrink-0"
                                   >
-                                    <ExternalLink className="h-4 w-4" />
                                     <span>Xem ảnh gốc</span>
+                                    <ExternalLink className="h-3 w-3" />
                                   </a>
+                                )}
+                              </div>
+
+                              {/* Document Sheet Preview: clean, non-scrollable, fit-height paper look */}
+                              {fullUrl ? (
+                                <div className="rounded-lg border border-slate-200/90 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 p-2 flex items-center justify-center">
+                                  <div className="rounded bg-white dark:bg-slate-900 shadow-2xs p-1 flex items-center justify-center w-full">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={fullUrl}
+                                      alt={img.name}
+                                      className="max-h-[500px] w-auto max-w-full object-contain mx-auto"
+                                    />
+                                  </div>
                                 </div>
                               ) : (
-                                <div className="h-32 bg-slate-100 rounded-lg flex items-center justify-center text-xs text-muted">
+                                <div className="h-40 bg-slate-50 rounded-lg flex items-center justify-center text-xs text-muted">
                                   Không thể tải ảnh
                                 </div>
                               )}

@@ -60,16 +60,17 @@ class ArtifactStorage:
         self,
         session_id: str,
         session_info: dict[str, Any],
-        results: list[dict[str, Any]],
+        results: list[dict[str, Any]] | None = None,
     ) -> Path:
-        """Persist session summary and itemized results to sessions/<session_id>/."""
+        """Persist session summary and optionally itemized results to sessions/<session_id>/."""
         session_dir = self.sessions_dir / session_id
         session_dir.mkdir(parents=True, exist_ok=True)
 
         session_file = session_dir / "session.json"
         atomic_write_text(session_file, json.dumps(session_info, indent=2, ensure_ascii=False))
 
-        results_file = session_dir / "results.json"
-        atomic_write_text(results_file, json.dumps(results, indent=2, ensure_ascii=False))
+        if results is not None:
+            results_file = session_dir / "results.json"
+            atomic_write_text(results_file, json.dumps(results, indent=2, ensure_ascii=False))
 
         return session_dir

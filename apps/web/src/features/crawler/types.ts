@@ -39,6 +39,7 @@ export interface CrawlDirectResult {
   page_dir?: string
   error_message?: string
   ingested: boolean
+  published?: boolean
 }
 
 export interface DiscoverPayload {
@@ -119,6 +120,13 @@ export interface StartQueuePayload {
   clear_queue?: boolean
 }
 
+export interface StartQueueResponse {
+  session_id: string
+  status: string
+  total_urls: number
+  message?: string
+}
+
 export interface StartQueueResult {
   session_id: string
   total: number
@@ -163,5 +171,3 @@ export interface SessionDetailData {
   session: Record<string, unknown>
   items: SessionDetailItem[]
 }
-
-

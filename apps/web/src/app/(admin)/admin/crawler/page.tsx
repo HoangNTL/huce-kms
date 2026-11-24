@@ -37,14 +37,12 @@ export default function AdminCrawlerPage() {
   }, [refreshQueueCount, activeTab])
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-0.5">
-        <h1 className="font-heading text-lg font-bold tracking-tight text-heading">
+    <div className="space-y-6">
+      {/* Page Title: Clean & Focused, consistent with other admin management pages */}
+      <div>
+        <h1 className="font-heading text-xl font-bold tracking-tight text-heading">
           Thu thập dữ liệu
         </h1>
-        <p className="text-xs text-muted">
-          Bóc tách và đồng bộ tài liệu từ các cổng thông tin vào kho tri thức HUCE-KMS
-        </p>
       </div>
 
       <Tabs

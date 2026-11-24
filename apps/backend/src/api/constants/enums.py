@@ -179,3 +179,120 @@ class ReviewQueueStatus(IntEnum):
             ReviewQueueStatus.CRAWLED: "crawled",
         }
         return mapping.get(self, "pending")
+
+
+class CrawlSessionStatus(IntEnum):
+    """Lifecycle states for batch crawl sessions."""
+    PENDING = 0
+    IN_PROGRESS = 1
+    COMPLETED = 2
+    FAILED = 3
+    CANCELLED = 4
+    INTERRUPTED = 5
+
+    @property
+    def label(self) -> str:
+        mapping = {
+            CrawlSessionStatus.PENDING: "Chờ thực hiện",
+            CrawlSessionStatus.IN_PROGRESS: "Đang thu thập",
+            CrawlSessionStatus.COMPLETED: "Hoàn thành",
+            CrawlSessionStatus.FAILED: "Thất bại",
+            CrawlSessionStatus.CANCELLED: "Đã hủy",
+            CrawlSessionStatus.INTERRUPTED: "Bị gián đoạn",
+        }
+        return mapping.get(self, "Không xác định")
+
+    @property
+    def name_str(self) -> str:
+        mapping = {
+            CrawlSessionStatus.PENDING: "pending",
+            CrawlSessionStatus.IN_PROGRESS: "in_progress",
+            CrawlSessionStatus.COMPLETED: "completed",
+            CrawlSessionStatus.FAILED: "failed",
+            CrawlSessionStatus.CANCELLED: "cancelled",
+            CrawlSessionStatus.INTERRUPTED: "interrupted",
+        }
+        return mapping.get(self, "unknown")
+
+    @classmethod
+    def from_str(cls, val: str | None) -> "CrawlSessionStatus":
+        if not val:
+            return cls.PENDING
+        norm = val.strip().lower()
+        mapping = {
+            "pending": cls.PENDING,
+            "0": cls.PENDING,
+            "in_progress": cls.IN_PROGRESS,
+            "running": cls.IN_PROGRESS,
+            "1": cls.IN_PROGRESS,
+            "completed": cls.COMPLETED,
+            "2": cls.COMPLETED,
+            "failed": cls.FAILED,
+            "3": cls.FAILED,
+            "cancelled": cls.CANCELLED,
+            "canceled": cls.CANCELLED,
+            "4": cls.CANCELLED,
+            "interrupted": cls.INTERRUPTED,
+            "5": cls.INTERRUPTED,
+        }
+        if norm not in mapping:
+            raise ValueError(f"Invalid CrawlSessionStatus '{val}'. Must be one of: {list(mapping.keys())}")
+        return mapping[norm]
+
+
+class CrawlItemStatus(IntEnum):
+    """Outcome status for single URL within a crawl session."""
+    PENDING = 0
+    RUNNING = 1
+    SUCCESS = 2
+    PARTIAL = 3
+    FAILED = 4
+    SKIPPED = 5
+
+    @property
+    def label(self) -> str:
+        mapping = {
+            CrawlItemStatus.PENDING: "Chờ xử lý",
+            CrawlItemStatus.RUNNING: "Đang thu thập",
+            CrawlItemStatus.SUCCESS: "Thành công",
+            CrawlItemStatus.PARTIAL: "Thành công một phần",
+            CrawlItemStatus.FAILED: "Thất bại",
+            CrawlItemStatus.SKIPPED: "Bỏ qua",
+        }
+        return mapping.get(self, "Không xác định")
+
+    @property
+    def name_str(self) -> str:
+        mapping = {
+            CrawlItemStatus.PENDING: "pending",
+            CrawlItemStatus.RUNNING: "running",
+            CrawlItemStatus.SUCCESS: "success",
+            CrawlItemStatus.PARTIAL: "partial",
+            CrawlItemStatus.FAILED: "failed",
+            CrawlItemStatus.SKIPPED: "skipped",
+        }
+        return mapping.get(self, "unknown")
+
+    @classmethod
+    def from_str(cls, val: str | None) -> "CrawlItemStatus":
+        if not val:
+            return cls.PENDING
+        norm = val.strip().lower()
+        mapping = {
+            "pending": cls.PENDING,
+            "0": cls.PENDING,
+            "running": cls.RUNNING,
+            "in_progress": cls.RUNNING,
+            "1": cls.RUNNING,
+            "success": cls.SUCCESS,
+            "2": cls.SUCCESS,
+            "partial": cls.PARTIAL,
+            "3": cls.PARTIAL,
+            "failed": cls.FAILED,
+            "4": cls.FAILED,
+            "skipped": cls.SKIPPED,
+            "5": cls.SKIPPED,
+        }
+        if norm not in mapping:
+            raise ValueError(f"Invalid CrawlItemStatus '{val}'. Must be one of: {list(mapping.keys())}")
+        return mapping[norm]

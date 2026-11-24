@@ -2,6 +2,7 @@ import hashlib
 import logging
 import uuid
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -110,8 +111,23 @@ class DocumentService:
 
         # 5. Save file to Object Storage (MinIO) or local fallback
         clean_file_name = Path(file_name).name or "document"
-        unique_file_name = f"{uuid.uuid4().hex[:12]}_{clean_file_name}"
-        object_key = f"documents/{unique_file_name}"
+        if len(clean_file_name) > 255:
+            clean_file_name = clean_file_name[: 255 - len(suffix)] + suffix
+        clean_title = title.strip()
+        if len(clean_title) > 255:
+            clean_title = clean_title[:251] + "..."
+
+        # 5. Generate unified document ID & hierarchical object path:
+        # documents/{source_type}/{YYYY}/{MM}/{document_id}/{clean_file_name}
+        doc_id = uuid7()
+        now = datetime.now(timezone.utc)
+        resolved_source_type = (
+            source_type
+            if isinstance(source_type, DocumentSourceType)
+            else DocumentSourceType.from_str(source_type)
+        )
+        source_dir = resolved_source_type.name_str
+        object_key = f"documents/{source_dir}/{now.year:04d}/{now.month:02d}/{doc_id}/{clean_file_name}"
 
         content_type_map = {
             ".pdf": "application/pdf",
@@ -128,14 +144,15 @@ class DocumentService:
 
         # 6. Create preliminary Document record in PostgreSQL (status = 'pending')
         document = Document(
-            title=title.strip(),
+            id=doc_id,
+            title=clean_title,
             file_name=clean_file_name,
             file_path=saved_file_key,
             file_size=len(file_bytes),
             file_type=suffix.lstrip("."),
             file_hash=file_hash,
             source_url=source_url,
-            source_type=source_type if isinstance(source_type, DocumentSourceType) else DocumentSourceType.from_str(source_type),
+            source_type=resolved_source_type,
             status=DocumentStatus.PENDING,
             category_id=category_id,
             created_by_id=actual_creator_id,

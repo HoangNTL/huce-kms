@@ -38,3 +38,11 @@ class StartQueueRequest(BaseModel):
 class RemoveQueueItemRequest(BaseModel):
     url: str = Field(..., description="Target URL to remove from approved queue")
 
+
+class StartQueueResponse(BaseModel):
+    session_id: str = Field(..., description="Identifier of the started crawl session")
+    status: str = Field(default="in_progress", description="Initial session status")
+    total_urls: int = Field(..., description="Total URLs scheduled for crawling")
+    message: str = Field(default="Phiên thu thập đã được khởi chạy ngầm thành công.", description="User-facing status message")
+
+

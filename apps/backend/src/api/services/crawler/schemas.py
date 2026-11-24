@@ -98,6 +98,7 @@ class CrawlResult(BaseModel):
     url: str
     status: Literal["success", "failed", "partial"]
     title: str
+    page_hash: str = ""
     artifact_dir: Path
     markdown_path: Path | None = None
     metadata_path: Path | None = None
