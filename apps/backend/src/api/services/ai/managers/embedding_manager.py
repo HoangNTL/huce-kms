@@ -7,8 +7,10 @@ from api.services.ai.fallback.cooldown_tracker import cooldown_tracker
 from api.services.ai.fallback.error_classifier import extract_retry_delay
 from api.services.ai.interfaces.embedding import BaseEmbeddingProvider
 from api.services.ai.providers.embedding.gemini import GeminiEmbeddingProvider
-from api.services.ai.providers.embedding.jina import JinaEmbeddingProvider
-from api.services.ai.providers.embedding.voyage import VoyageEmbeddingProvider
+from api.services.ai.providers.embedding.rest import (
+    JinaEmbeddingProvider,
+    VoyageEmbeddingProvider,
+)
 from api.services.ai.schemas.ai import (
     AIErrorType,
     AIProviderError,

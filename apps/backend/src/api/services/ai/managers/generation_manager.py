@@ -6,8 +6,10 @@ from api.core.config import settings
 from api.services.ai.fallback.cooldown_tracker import cooldown_tracker
 from api.services.ai.interfaces.generation import BaseGenerationProvider
 from api.services.ai.providers.generation.gemini import GeminiGenerationProvider
-from api.services.ai.providers.generation.groq import GroqGenerationProvider
-from api.services.ai.providers.generation.openrouter import OpenRouterGenerationProvider
+from api.services.ai.providers.generation.openai_compatible import (
+    GroqGenerationProvider,
+    OpenRouterGenerationProvider,
+)
 from api.services.ai.schemas.ai import (
     AIErrorType,
     AIProviderError,

@@ -49,6 +49,66 @@ class CrawlerCoreEngine:
         self.storage = ArtifactStorage(base_dir=base_data_dir)
         self.check_dns = check_dns
 
+    async def _download_media_batch(
+        self,
+        client: httpx.AsyncClient,
+        links: list,
+        dest_dir: Path,
+        media_type: str,
+        media_mapping: dict[str, str],
+        errors: list[str],
+        include_preferred_name: bool = False,
+    ) -> list[CrawledMediaItem]:
+        """Download a batch of PDF or image links and track successes/failures."""
+        folder = "pdfs" if media_type == "pdf" else "images"
+        items: list[CrawledMediaItem] = []
+
+        for link in links:
+            try:
+                kwargs: dict = {
+                    "client": client,
+                    "url": link.url,
+                    "dest_dir": dest_dir,
+                    "media_type": media_type,
+                    "url_validator": self.fetcher.validate_url,
+                }
+                if include_preferred_name:
+                    kwargs["preferred_name"] = link.title
+
+                res = await FileDownloader.download_file_stream(**kwargs)
+                items.append(
+                    CrawledMediaItem(
+                        url=link.url,
+                        local_path=f"{folder}/{res.file_name}",
+                        file_name=res.file_name,
+                        file_size=res.file_size,
+                        file_hash=res.file_hash,
+                        mime_type=res.mime_type,
+                        media_type=media_type,
+                        status="success",
+                    )
+                )
+                media_mapping[link.url] = f"./{folder}/{res.file_name}"
+            except Exception as e:
+                err_msg = f"Failed to download {media_type} '{link.url}': {e}"
+                logger.warning(err_msg)
+                errors.append(err_msg)
+                items.append(
+                    CrawledMediaItem(
+                        url=link.url,
+                        local_path="",
+                        file_name="",
+                        file_size=0,
+                        file_hash="",
+                        mime_type="",
+                        media_type=media_type,
+                        status="failed",
+                        error=str(e),
+                    )
+                )
+
+        return items
+
     async def crawl_url(
         self,
         url: str,
@@ -95,88 +155,24 @@ class CrawlerCoreEngine:
                 client_kwargs["transport"] = self.fetcher.transport
 
             async with httpx.AsyncClient(**client_kwargs) as client:
-                # Download PDFs
-                for link in discovered_media.pdfs:
-                    try:
-                        res = await FileDownloader.download_file_stream(
-                            client=client,
-                            url=link.url,
-                            dest_dir=pdfs_dir,
-                            media_type="pdf",
-                            preferred_name=link.title,
-                            url_validator=self.fetcher.validate_url,
-                        )
-                        crawled_pdfs.append(
-                            CrawledMediaItem(
-                                url=link.url,
-                                local_path=f"pdfs/{res.file_name}",
-                                file_name=res.file_name,
-                                file_size=res.file_size,
-                                file_hash=res.file_hash,
-                                mime_type=res.mime_type,
-                                media_type="pdf",
-                                status="success",
-                            )
-                        )
-                        media_mapping[link.url] = f"./pdfs/{res.file_name}"
-                    except Exception as e:
-                        err_msg = f"Failed to download PDF '{link.url}': {e}"
-                        logger.warning(err_msg)
-                        errors.append(err_msg)
-                        crawled_pdfs.append(
-                            CrawledMediaItem(
-                                url=link.url,
-                                local_path="",
-                                file_name="",
-                                file_size=0,
-                                file_hash="",
-                                mime_type="",
-                                media_type="pdf",
-                                status="failed",
-                                error=str(e),
-                            )
-                        )
-
-                # Download Images
-                for img_link in discovered_media.images:
-                    try:
-                        res = await FileDownloader.download_file_stream(
-                            client=client,
-                            url=img_link.url,
-                            dest_dir=images_dir,
-                            media_type="image",
-                            url_validator=self.fetcher.validate_url,
-                        )
-                        crawled_images.append(
-                            CrawledMediaItem(
-                                url=img_link.url,
-                                local_path=f"images/{res.file_name}",
-                                file_name=res.file_name,
-                                file_size=res.file_size,
-                                file_hash=res.file_hash,
-                                mime_type=res.mime_type,
-                                media_type="image",
-                                status="success",
-                            )
-                        )
-                        media_mapping[img_link.url] = f"./images/{res.file_name}"
-                    except Exception as e:
-                        err_msg = f"Failed to download image '{img_link.url}': {e}"
-                        logger.warning(err_msg)
-                        errors.append(err_msg)
-                        crawled_images.append(
-                            CrawledMediaItem(
-                                url=img_link.url,
-                                local_path="",
-                                file_name="",
-                                file_size=0,
-                                file_hash="",
-                                mime_type="",
-                                media_type="image",
-                                status="failed",
-                                error=str(e),
-                            )
-                        )
+                crawled_pdfs = await self._download_media_batch(
+                    client=client,
+                    links=discovered_media.pdfs,
+                    dest_dir=pdfs_dir,
+                    media_type="pdf",
+                    media_mapping=media_mapping,
+                    errors=errors,
+                    include_preferred_name=True,
+                )
+                crawled_images = await self._download_media_batch(
+                    client=client,
+                    links=discovered_media.images,
+                    dest_dir=images_dir,
+                    media_type="image",
+                    media_mapping=media_mapping,
+                    errors=errors,
+                    include_preferred_name=False,
+                )
 
         # 7. Convert HTML to clean Markdown with local media rewrites
         crawled_at = datetime.now(timezone.utc).isoformat()
@@ -202,11 +198,7 @@ class CrawlerCoreEngine:
         content_hash = Deduplicator.compute_content_hash(markdown_content)
 
         # 8. Create PageMetadata manifest
-        crawl_status = "success"
-        if errors and (len(crawled_pdfs) + len(crawled_images) > len(errors)):
-            crawl_status = "partial"
-        elif errors and not crawled_pdfs and not crawled_images:
-            crawl_status = "partial"
+        crawl_status = "partial" if errors else "success"
 
         metadata = PageMetadata(
             source=PageSourceMeta(
