@@ -18,6 +18,7 @@ from api.services.ai.schemas.ai import (
     AIProviderError,
     GenerationRequest,
 )
+from api.services.rag.patterns import detect_language
 from api.services.rag.vector_store import QdrantVectorStore
 
 logger = logging.getLogger("huce_kms.rag.service")
@@ -72,10 +73,13 @@ class RAGService:
         # 1. Generate query embedding vector via EmbeddingManager
         query_vector = await self.embedder.generate_embedding(query)
 
-        # 2. Retrieve nearest vector points from Qdrant
+        # 2. Retrieve candidate vector points (oversample slightly when query language is clear
+        # so bilingual VI/EN translations do not crowd out matching-language top_k slots)
+        query_lang = detect_language(query)
+        fetch_limit = max(top_k * 2, 10) if query_lang else top_k
         raw_results = await self.vector_store.search(
             query_vector=query_vector,
-            limit=top_k,
+            limit=fetch_limit,
             category_id=category_id,
         )
 
@@ -91,20 +95,46 @@ class RAGService:
             raw_cat_id = payload.get("category_id")
             cat_uuid = UUID(str(raw_cat_id)) if raw_cat_id else None
 
+            p_start = int(payload.get("page_start") or payload.get("page_number", 1))
+            p_end = int(payload.get("page_end") or p_start)
+            ctx_str = str(payload.get("context") or "").strip() or None
+            meta = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+
             items.append(
                 SearchResultItem(
                     id=pt["id"],
                     document_id=doc_uuid,
                     title=str(payload.get("title", "")),
                     category_id=cat_uuid,
-                    page_number=int(payload.get("page_number", 1)),
+                    page_number=p_start,
+                    page_start=p_start,
+                    page_end=p_end,
                     chunk_index=int(payload.get("chunk_index", 0)),
                     score=score,
+                    context=ctx_str,
+                    metadata=meta,
                     content=str(payload.get("content", "")),
                 )
             )
 
-        return items
+        return self._prioritize_by_language(items, query_lang, top_k)
+
+    @staticmethod
+    def _prioritize_by_language(
+        items: list[SearchResultItem], query_lang: str | None, top_k: int
+    ) -> list[SearchResultItem]:
+        """Prefer chunks matching query_lang (or untagged legacy chunks) over opposite-language translations."""
+        if not query_lang:
+            return items[:top_k]
+        preferred: list[SearchResultItem] = []
+        secondary: list[SearchResultItem] = []
+        for item in items:
+            chunk_lang = item.metadata.get("language") if isinstance(item.metadata, dict) else None
+            if chunk_lang and chunk_lang != query_lang:
+                secondary.append(item)
+            else:
+                preferred.append(item)
+        return (preferred + secondary)[:top_k]
 
     def _build_context_and_sources(
         self, chunks: list[SearchResultItem]
@@ -114,8 +144,12 @@ class RAGService:
         sources: list[CitationSource] = []
 
         for idx, chunk in enumerate(chunks, 1):
+            p_start = chunk.page_start or chunk.page_number
+            p_end = chunk.page_end or p_start
+            page_label = f"{p_start}-{p_end}" if p_end > p_start else str(p_start)
+            section_part = f" | Context: \"{chunk.context}\"" if chunk.context else ""
             context_parts.append(
-                f"[Excerpt {idx}] Document: \"{chunk.title}\" | Page: {chunk.page_number}\n{chunk.content}"
+                f"[Excerpt {idx}] Document: \"{chunk.title}\"{section_part} | Page: {page_label}\n{chunk.content}"
             )
             # Create snippet preview (first 200 chars)
             snippet = chunk.content[:200] + ("..." if len(chunk.content) > 200 else "")
@@ -123,9 +157,13 @@ class RAGService:
                 CitationSource(
                     document_id=chunk.document_id,
                     title=chunk.title,
-                    page_number=chunk.page_number,
+                    page_number=p_start,
+                    page_start=p_start,
+                    page_end=p_end,
                     chunk_index=chunk.chunk_index,
                     score=chunk.score,
+                    context=chunk.context,
+                    metadata=chunk.metadata,
                     snippet=snippet,
                 )
             )

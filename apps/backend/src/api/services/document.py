@@ -1,5 +1,7 @@
+import asyncio
 import hashlib
 import logging
+import time
 import uuid
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -8,7 +10,7 @@ from uuid import UUID
 
 from api.constants.enums import DocumentSourceType, DocumentStatus
 from api.core.config import settings
-from api.core.database import uuid7
+from api.core.database import async_session_factory, uuid7
 from api.core.exceptions import (
     BadRequestException,
     ConflictException,
@@ -77,8 +79,9 @@ class DocumentService:
         uploader_id: UUID | None = None,
         source_url: str | None = None,
         source_type: DocumentSourceType | str = DocumentSourceType.UPLOAD,
+        run_in_background: bool = False,
     ) -> DocumentResponse:
-        """Validate, store, parse, embed and index an uploaded document into PostgreSQL and Qdrant."""
+        """Validate, store, and optionally index an uploaded document into PostgreSQL and Qdrant."""
         actual_creator_id = created_by_id or uploader_id
         # 1. Validate file extension
         suffix = Path(file_name).suffix.lower()
@@ -142,7 +145,8 @@ class DocumentService:
             content_type=content_type,
         )
 
-        # 6. Create preliminary Document record in PostgreSQL (status = 'pending')
+        # 6. Create preliminary Document record in PostgreSQL
+        initial_status = DocumentStatus.PROCESSING if run_in_background else DocumentStatus.PENDING
         document = Document(
             id=doc_id,
             title=clean_title,
@@ -153,7 +157,7 @@ class DocumentService:
             file_hash=file_hash,
             source_url=source_url,
             source_type=resolved_source_type,
-            status=DocumentStatus.PENDING,
+            status=initial_status,
             category_id=category_id,
             created_by_id=actual_creator_id,
             total_pages=0,
@@ -162,7 +166,10 @@ class DocumentService:
         )
         document = await self.document_repo.create(document)
 
-        # 7. Execute Ingestion Pipeline (Parsing -> Chunking -> Embedding -> Qdrant + DB Indexing)
+        if run_in_background:
+            return await self._build_document_response(document)
+
+        # 7. Execute Ingestion Pipeline inline (Parsing -> Chunking -> Embedding -> Qdrant + DB Indexing)
         try:
             document = await self._execute_indexing_pipeline(
                 document=document,
@@ -171,7 +178,7 @@ class DocumentService:
                 chunk_strategy=chunk_strategy,
             )
         except Exception:
-            # Remove stored file to avoid orphaned storage on upload failure
+            # Remove stored file to avoid orphaned storage on synchronous upload failure
             try:
                 await self.storage_service.delete_file(saved_file_key)
             except Exception as cleanup_err:
@@ -188,12 +195,29 @@ class DocumentService:
         chunk_strategy: str = "legal_structural",
     ) -> Document:
         """Execute OCR/parsing, text cleaning, chunking, Gemini embedding, and Qdrant/PostgreSQL indexing."""
+        started_at = time.perf_counter()
+        had_existing_chunks = (document.chunk_count or 0) > 0
         document.status = DocumentStatus.PROCESSING
         await self.document_repo.update(document)
+        logger.info(
+            "Starting indexing pipeline for document id=%s ('%s', type=%s, strategy=%s).",
+            document.id,
+            document.title,
+            document.file_type,
+            chunk_strategy,
+        )
 
+        vectors_dirty = False
         try:
-            # Step 1: Parse raw text pages (with automatic OCR for scanned PDFs)
-            raw_pages = await self.parser.parse_async(file_bytes, file_name, enable_ocr=True)
+            # Step 1: Parse raw text pages (with per-page OCR checkpoint cache keyed by file_hash)
+            t0 = time.perf_counter()
+            raw_pages = await self.parser.parse_async(
+                file_bytes,
+                file_name,
+                enable_ocr=True,
+                ocr_cache_key=document.file_hash,
+                storage_service=self.storage_service,
+            )
             total_pages = len(raw_pages)
 
             # Step 2: Clean and normalize text
@@ -216,13 +240,15 @@ class DocumentService:
                 raise BadRequestException(
                     message="No extractable text content found in document."
                 )
+            parse_elapsed = time.perf_counter() - t0
 
-            # Step 4: Clean previous chunks and vector points if re-processing
-            await self.chunk_repo.delete_by_document_id(document.id)
-            try:
-                await self.vector_store.delete_by_document_id(document.id)
-            except Exception as qdrant_err:
-                logger.warning("Could not delete vector points for document id=%s: %s", document.id, qdrant_err)
+            # Abort cleanly before embedding if document was soft-deleted while parsing/OCR ran
+            if not await self.document_repo.is_active(document.id):
+                logger.info(
+                    "Document id=%s was deleted during background indexing; aborting chunk write.",
+                    document.id,
+                )
+                return document
 
             # Assign UUIDv7 to each chunk (for 1-1 mapping with Qdrant Point IDs)
             chunks_with_id = []
@@ -234,9 +260,31 @@ class DocumentService:
                 chunk_dict["category_id"] = document.category_id
                 chunks_with_id.append(chunk_dict)
 
-            # Step 5: Generate vector embeddings and upsert to Qdrant
-            texts_to_embed = [c["content"] for c in chunks_with_id]
+            # Step 4: Embed (context + "\n" + content) BEFORE removing existing vectors so failures keep old index intact
+            t_embed = time.perf_counter()
+            texts_to_embed = [
+                f"{c['context']}\n{c['content']}".strip() if c.get("context") else c["content"]
+                for c in chunks_with_id
+            ]
             embeddings = await self.embedder.generate_embeddings_batch(texts_to_embed)
+            embed_elapsed = time.perf_counter() - t_embed
+
+            # Re-check PostgreSQL directly before replacing Qdrant/DB in case soft-delete committed during embedding
+            if not await self.document_repo.is_active(document.id):
+                logger.info(
+                    "Document id=%s was deleted during embedding; aborting vector upsert.",
+                    document.id,
+                )
+                return document
+
+            # Step 5: Replace previous chunks & Qdrant vectors atomically once new embeddings succeed
+            deleted_chunks = await self.chunk_repo.delete_by_document_id(document.id)
+            vectors_dirty = True
+            if had_existing_chunks or (deleted_chunks or 0) > 0:
+                try:
+                    await self.vector_store.delete_by_document_id(document.id)
+                except Exception as qdrant_err:
+                    logger.warning("Could not delete vector points for document id=%s: %s", document.id, qdrant_err)
             await self.vector_store.upsert_chunks(chunks_with_id, embeddings)
 
             # Step 6: Persist chunks to PostgreSQL
@@ -246,8 +294,13 @@ class DocumentService:
                     document_id=document.id,
                     chunk_index=c["chunk_index"],
                     content=c["content"],
-                    page_number=c["page_number"],
+                    context=c.get("context") or None,
+                    chunk_metadata=c.get("metadata") or {},
+                    page_number=c.get("page_start", c.get("page_number", 1)),
+                    page_start=c.get("page_start", c.get("page_number", 1)),
+                    page_end=c.get("page_end", c.get("page_number", 1)),
                     token_count=c["token_count"],
+                    content_hash=c.get("content_hash"),
                 )
                 for c in chunks_with_id
             ]
@@ -261,24 +314,31 @@ class DocumentService:
             document = await self.document_repo.update(document)
 
             logger.info(
-                "Document id=%s ('%s') successfully indexed with %d chunks and %d pages.",
+                "Document id=%s ('%s') indexed: %d chunks, %d pages (parse=%.2fs, embed=%.2fs, total=%.2fs).",
                 document.id,
                 document.title,
                 document.chunk_count,
                 document.total_pages,
+                parse_elapsed,
+                embed_elapsed,
+                time.perf_counter() - started_at,
             )
             return document
 
         except Exception as e:
             logger.error("Failed to process document id=%s: %s", document.id, e)
-            try:
-                await self.vector_store.delete_by_document_id(document.id)
-            except Exception as qdrant_err:
-                logger.warning("Could not delete vector points for document id=%s: %s", document.id, qdrant_err)
+            if vectors_dirty:
+                try:
+                    await self.vector_store.delete_by_document_id(document.id)
+                except Exception as qdrant_err:
+                    logger.warning("Could not delete vector points for document id=%s: %s", document.id, qdrant_err)
 
-            document.status = DocumentStatus.FAILED
-            document.error_message = str(e)
-            await self.document_repo.update(document)
+            try:
+                document.status = DocumentStatus.FAILED
+                document.error_message = str(e)
+                await self.document_repo.update(document)
+            except Exception as db_err:
+                logger.warning("Could not update FAILED status directly for document id=%s: %s", document.id, db_err)
             raise
 
     async def _build_document_response(self, document: Document) -> DocumentResponse:
@@ -298,13 +358,29 @@ class DocumentService:
         self,
         document_id: UUID,
         chunk_strategy: str = "legal_structural",
+        run_in_background: bool = False,
     ) -> DocumentResponse:
         """Parse, clean, chunk, embed, and index an already uploaded document into PostgreSQL and Qdrant."""
         document = await self.document_repo.get_by_id(document_id)
         if not document:
             raise EntityNotFoundException(entity_name="Document", entity_id=document_id)
 
-        file_bytes = await self.storage_service.get_file(document.file_path)
+        if run_in_background:
+            if document.status == DocumentStatus.PROCESSING:
+                return await self._build_document_response(document)
+            document.status = DocumentStatus.PROCESSING
+            document.error_message = None
+            document = await self.document_repo.update(document)
+            return await self._build_document_response(document)
+
+        try:
+            file_bytes = await self.storage_service.get_file(document.file_path)
+        except Exception as storage_err:
+            document.status = DocumentStatus.FAILED
+            document.error_message = str(storage_err)
+            await self.document_repo.update(document)
+            raise
+
         document = await self._execute_indexing_pipeline(
             document=document,
             file_bytes=file_bytes,
@@ -450,32 +526,40 @@ class DocumentService:
         # 1. Restore record in PostgreSQL
         await self.document_repo.restore(doc)
 
-        # 2. Re-index chunks into Qdrant
+        # 2. Re-index chunks into Qdrant (embedding context + "\n" + content while keeping clean content payload)
         doc_with_chunks = await self.document_repo.get_with_chunks(document_id)
         if doc_with_chunks and doc_with_chunks.chunks:
             try:
-                chunk_texts = [c.content for c in doc_with_chunks.chunks]
+                chunk_texts = [
+                    f"{c.context}\n{c.content}".strip() if c.context else c.content
+                    for c in doc_with_chunks.chunks
+                ]
                 embed_res = await self.embedder.embed_texts(chunk_texts)
                 embeddings = embed_res.embeddings
-                points = [
+                chunk_dicts = [
                     {
                         "id": str(c.id),
-                        "vector": emb,
-                        "payload": {
-                            "document_id": str(doc.id),
-                            "chunk_index": c.chunk_index,
-                            "content": c.content,
-                            "token_count": c.token_count,
-                            "page_number": c.page_number,
-                            "heading_path": c.heading_path,
-                            "category_id": str(doc.category_id) if doc.category_id else None,
-                            "title": doc.title,
-                        },
+                        "document_id": str(doc.id),
+                        "chunk_index": c.chunk_index,
+                        "content": c.content,
+                        "context": c.context,
+                        "metadata": c.chunk_metadata or {},
+                        "token_count": c.token_count,
+                        "page_number": c.page_number,
+                        "page_start": c.page_start,
+                        "page_end": c.page_end,
+                        "content_hash": c.content_hash,
+                        "category_id": str(doc.category_id) if doc.category_id else None,
+                        "title": doc.title,
                     }
-                    for c, emb in zip(doc_with_chunks.chunks, embeddings)
+                    for c in doc_with_chunks.chunks
                 ]
-                await self.vector_store.upsert_chunks(points)
-                logger.info("Re-indexed %d chunks into Qdrant for restored document id=%s", len(points), document_id)
+                await self.vector_store.upsert_chunks(chunk_dicts, embeddings)
+                logger.info(
+                    "Re-indexed %d chunks into Qdrant for restored document id=%s",
+                    len(chunk_dicts),
+                    document_id,
+                )
             except Exception as e:
                 logger.warning("Failed to re-index Qdrant points during document restore id=%s: %s", document_id, e)
 
@@ -524,7 +608,7 @@ class DocumentService:
                 )
             except Exception as e:
                 logger.warning(
-                    "Failed to sync Qdrant payload for document id=%d: %s",
+                    "Failed to sync Qdrant payload for document id=%s: %s",
                     document_id,
                     e,
                 )
@@ -532,3 +616,92 @@ class DocumentService:
         # 5. Fetch updated document with category populated
         updated_doc = await self.document_repo.get_with_category(document_id)
         return DocumentResponse.model_validate(updated_doc or doc)
+
+
+_background_indexing_tasks: dict[UUID, asyncio.Task] = {}
+_background_indexing_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_indexing_semaphore() -> asyncio.Semaphore:
+    global _background_indexing_semaphore
+    if _background_indexing_semaphore is None:
+        _background_indexing_semaphore = asyncio.Semaphore(2)
+    return _background_indexing_semaphore
+
+
+async def run_background_document_indexing(
+    document_id: UUID,
+    chunk_strategy: str = "legal_structural",
+) -> None:
+    """Execute document OCR, chunking, and vector indexing in a bounded background session."""
+    from api.repositories.category import CategoryRepository
+    from api.repositories.document import DocumentRepository
+    from api.repositories.document_chunk import DocumentChunkRepository
+    from api.services.ai.managers.embedding_manager import EmbeddingManager
+    from api.services.rag.vector_store import QdrantVectorStore
+    from api.services.storage import get_storage_service
+
+    async with _get_indexing_semaphore():
+        vector_store = QdrantVectorStore()
+        try:
+            async with async_session_factory() as session:
+                doc_repo = DocumentRepository(session)
+                chunk_repo = DocumentChunkRepository(session)
+                cat_repo = CategoryRepository(session)
+                service = DocumentService(
+                    document_repo=doc_repo,
+                    chunk_repo=chunk_repo,
+                    category_repo=cat_repo,
+                    embedder=EmbeddingManager(),
+                    vector_store=vector_store,
+                    storage_service=get_storage_service(),
+                )
+                try:
+                    await service.process_document(
+                        document_id=document_id,
+                        chunk_strategy=chunk_strategy,
+                        run_in_background=False,
+                    )
+                    await session.commit()
+                except Exception as exc:
+                    from api.core.exceptions import AppException
+                    logger.error(
+                        "Background indexing failed for document id=%s: %s",
+                        document_id,
+                        exc,
+                        exc_info=not isinstance(exc, AppException),
+                    )
+                    await session.rollback()
+                    try:
+                        doc_row = await service.document_repo.get_by_id(document_id)
+                        if doc_row is not None:
+                            doc_row.status = DocumentStatus.FAILED
+                            doc_row.error_message = str(exc)
+                            await service.document_repo.update(doc_row)
+                            await session.commit()
+                    except Exception as status_err:
+                        await session.rollback()
+                        logger.error(
+                            "Could not persist FAILED status after rollback for document id=%s: %s",
+                            document_id,
+                            status_err,
+                        )
+        finally:
+            await vector_store.close()
+
+
+def schedule_document_indexing(
+    document_id: UUID,
+    chunk_strategy: str = "legal_structural",
+) -> asyncio.Task:
+    """Schedule background document indexing and retain task reference until completion."""
+    existing = _background_indexing_tasks.get(document_id)
+    if existing and not existing.done():
+        return existing
+
+    task = asyncio.create_task(
+        run_background_document_indexing(document_id=document_id, chunk_strategy=chunk_strategy)
+    )
+    _background_indexing_tasks[document_id] = task
+    task.add_done_callback(lambda _t: _background_indexing_tasks.pop(document_id, None))
+    return task

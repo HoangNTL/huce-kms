@@ -117,13 +117,19 @@ class CrawlIngestionAdapter:
         except Exception:
             return False
 
+    @staticmethod
+    def _has_ocr_provider() -> bool:
+        from api.services.ai.managers.ocr_manager import ocr_manager
+
+        return ocr_manager.has_available_provider()
+
     async def enrich_markdown_with_ocr(
         self,
         markdown_content: str,
         image_files: list[Path],
     ) -> str:
         """If markdown has image attachments and is not yet enriched, transcribe them via Gemini Vision OCR."""
-        if not image_files or not settings.GEMINI_API_KEY:
+        if not image_files or not self._has_ocr_provider():
             return markdown_content
 
         if "## Nội dung trích xuất từ văn bản đính kèm" in markdown_content:
@@ -139,7 +145,7 @@ class CrawlIngestionAdapter:
             return markdown_content
 
         try:
-            from api.services.rag.parser import DocumentParser
+            from api.services.ai.managers.ocr_manager import ocr_manager
 
             mime_types = {
                 ".png": "image/png",
@@ -153,7 +159,7 @@ class CrawlIngestionAdapter:
                 try:
                     img_bytes = img_path.read_bytes()
                     mime = mime_types.get(img_path.suffix.lower(), "image/png")
-                    extracted_text = await DocumentParser.ocr_image_bytes(
+                    extracted_text = await ocr_manager.ocr_image_bytes(
                         image_bytes=img_bytes,
                         mime_type=mime,
                         context_label=f"scanned document '{img_path.name}'",

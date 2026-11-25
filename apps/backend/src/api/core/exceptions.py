@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("huce_kms.exceptions")
 
 
 # Base Exception & Concrete Domain Exceptions
@@ -146,24 +146,29 @@ def format_error_response(
 # Global Exception Handlers
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Handle all application-specific exceptions derived from AppException."""
+    req_id = getattr(request.state, "request_id", "-")
     if exc.status_code >= 500:
         logger.error(
-            "Server AppException [%s %s] - Code: %s, Message: %s",
+            "[%s] Server AppException [%s %s] - Code: %s, Message: %s",
+            req_id,
             request.method,
             request.url.path,
             exc.error_code,
             exc.message,
         )
-    elif exc.status_code == status.HTTP_403_FORBIDDEN:
+    elif exc.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
         logger.warning(
-            "Forbidden access [%s %s] - User denied: %s",
+            "[%s] %s [%s %s] - %s",
+            req_id,
+            exc.error_code,
             request.method,
             request.url.path,
             exc.message,
         )
     else:
         logger.debug(
-            "AppException [%s %s] - Code: %s, Message: %s",
+            "[%s] AppException [%s %s] - Code: %s, Message: %s",
+            req_id,
             request.method,
             request.url.path,
             exc.error_code,
@@ -204,6 +209,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "type": error.get("type", "value_error"),
         })
 
+    req_id = getattr(request.state, "request_id", "-")
+    logger.warning(
+        "[%s] VALIDATION_ERROR [%s %s] - %s",
+        req_id,
+        request.method,
+        request.url.path,
+        "; ".join(f"{e['field']}: {e['message']}" for e in formatted_errors[:5]),
+    )
     return format_error_response(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         error_code="VALIDATION_ERROR",
@@ -214,8 +227,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch unhandled internal server exceptions (500) and conceal sensitive stacktraces."""
+    req_id = getattr(request.state, "request_id", "-")
     logger.exception(
-        "Unhandled Exception on [%s %s]: %s",
+        "[%s] Unhandled Exception on [%s %s]: %s",
+        req_id,
         request.method,
         request.url.path,
         exc,

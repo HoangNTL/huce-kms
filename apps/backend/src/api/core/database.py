@@ -13,10 +13,10 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from api.core.config import settings
 
-# 1. Initialize Async Engine
+# 1. Initialize Async Engine (SQL logging controlled cleanly via logging.py + SQL_ECHO)
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=False,
     pool_pre_ping=True,
 )
 

@@ -13,6 +13,7 @@ import {
   Check,
   Image as ImageIcon,
   File,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,7 +43,9 @@ function ChunkItem({ chunk, index }: { chunk: DocumentChunk; index: number }) {
   const [isExpanded, setIsExpanded] = React.useState(false)
   const isLong = chunk.content.length > 350
   const chunkIndex = chunk.chunk_index ?? index
-  const pageNum = chunk.page_number || 1
+  const pageStart = chunk.page_start ?? chunk.page_number ?? 1
+  const pageEnd = chunk.page_end ?? pageStart
+  const pageLabel = pageEnd > pageStart ? `Trang ${pageStart}–${pageEnd}` : `Trang ${pageStart}`
   const tokens = chunk.token_count || 0
 
   return (
@@ -52,11 +55,17 @@ function ChunkItem({ chunk, index }: { chunk: DocumentChunk; index: number }) {
           Chunk {chunkIndex + 1}
         </span>
         <div className="flex items-center gap-2 text-xs text-muted">
-          <span>Trang {pageNum}</span>
+          <span>{pageLabel}</span>
           <span>·</span>
           <span>{tokens} tokens</span>
         </div>
       </div>
+
+      {chunk.context && (
+        <div className="mb-2 rounded-md bg-slate-50 px-2.5 py-1 text-2xs font-medium text-slate-600 border border-slate-200/70">
+          {chunk.context}
+        </div>
+      )}
 
       <div className="relative">
         <p
@@ -187,43 +196,65 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
     }
   }, [])
 
-  // Load document data and preview
-  const loadDocumentDetail = React.useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const data = await documentService.getDocument(resolvedParams.id)
-      setDoc(data)
-      setIsLoading(false)
+  // Load document data and optional markdown preview without synchronous setState
+  const loadDocumentDetail = React.useCallback(
+    async (includePreview: boolean = false, isStale?: () => boolean) => {
+      try {
+        const data = await documentService.getDocument(resolvedParams.id)
+        if (isStale?.()) return
+        setDoc(data)
+        setIsLoading(false)
 
-      // Default tab: if 0 chunks and is MD file, default to preview so admin can read text immediately
-      if ((data.chunk_count || 0) === 0 && data.file_type === "md") {
-        setActiveTab("preview")
-      }
+        if (includePreview) {
+          if ((data.chunk_count || 0) === 0 && data.file_type === "md") {
+            setActiveTab("preview")
+          }
 
-      if (data.file_type === "md" && (data.file_path || data.download_url)) {
-        await fetchMarkdown(data.file_path, data.download_url)
+          if (data.file_type === "md" && (data.file_path || data.download_url)) {
+            await fetchMarkdown(data.file_path, data.download_url)
+          }
+        }
+      } catch (err) {
+        if (isStale?.()) return
+        toast.error("Không thể tải thông tin tài liệu", {
+          description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
+        })
+        setIsLoading(false)
       }
-    } catch (err) {
-      toast.error("Không thể tải thông tin tài liệu", {
-        description: err instanceof Error ? err.message : "Tài liệu không tồn tại.",
-      })
-      setIsLoading(false)
-    }
-  }, [resolvedParams.id, fetchMarkdown])
+    },
+    [resolvedParams.id, fetchMarkdown]
+  )
 
   // Initial load
   React.useEffect(() => {
-    loadDocumentDetail()
+    let ignore = false
+    void Promise.resolve().then(() => loadDocumentDetail(true, () => ignore))
+    return () => {
+      ignore = true
+    }
   }, [loadDocumentDetail])
+
+  // Auto-refresh while document is still being processed in background
+  React.useEffect(() => {
+    if (
+      !doc ||
+      (doc.status !== DocumentStatus.PROCESSING && doc.status !== DocumentStatus.PENDING)
+    ) {
+      return
+    }
+    const timer = setInterval(() => {
+      void loadDocumentDetail(false)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [doc, loadDocumentDetail])
 
   const handleProcessDocument = async () => {
     setIsProcessing(true)
     try {
       await documentService.processDocument(resolvedParams.id)
       await loadDocumentDetail()
-      setActiveTab("chunks")
-      toast.success("Lập chỉ mục tài liệu thành công", {
-        description: "Đã phân đoạn và nạp dữ liệu vào kho tri thức AI.",
+      toast.info("Đang lập chỉ mục tài liệu", {
+        description: "Hệ thống đang xử lý tài liệu ở chế độ nền, trạng thái sẽ tự cập nhật.",
       })
     } catch (err) {
       toast.error("Lập chỉ mục thất bại", {
@@ -287,7 +318,12 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
   const relatedDocs = doc.related_documents || []
   const assets = doc.assets || []
   const totalAttachments = relatedDocs.length + assets.length
-  const isDraft = doc.status === DocumentStatus.UPLOADED
+  const canProcess =
+    doc.status === DocumentStatus.UPLOADED ||
+    doc.status === DocumentStatus.PENDING ||
+    doc.status === DocumentStatus.FAILED
+  const isProcessingInBackground =
+    doc.status === DocumentStatus.PROCESSING || doc.status === DocumentStatus.PENDING
 
   let sourceHost = ""
   if (doc.source_url) {
@@ -311,14 +347,14 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
 
         {/* Header Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          {isDraft && (
+          {canProcess && (
             <Button
               onClick={handleProcessDocument}
               loading={isProcessing}
               className="h-8 shrink-0 rounded-lg text-xs font-semibold bg-brand-primary text-white hover:bg-brand-primary/90 shadow-xs px-3"
               title="Phân đoạn và lập chỉ mục vào kho tri thức AI"
             >
-              <span>Lập chỉ mục</span>
+              <span>{doc.status === DocumentStatus.FAILED ? "Xử lý lại" : "Lập chỉ mục"}</span>
             </Button>
           )}
 
@@ -341,7 +377,13 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
           <Button
             variant="outline"
             onClick={() => setIsEditModalOpen(true)}
-            className="h-8 shrink-0 gap-1.5 rounded-lg border-border text-xs font-medium text-heading hover:bg-surface-hover hover:text-brand-primary"
+            disabled={doc.status === DocumentStatus.PROCESSING}
+            title={
+              doc.status === DocumentStatus.PROCESSING
+                ? "Không thể chỉnh sửa khi tài liệu đang xử lý"
+                : "Chỉnh sửa thông tin tài liệu"
+            }
+            className="h-8 shrink-0 gap-1.5 rounded-lg border-border text-xs font-medium text-heading hover:bg-surface-hover hover:text-brand-primary disabled:opacity-50"
           >
             <Pencil className="h-3.5 w-3.5 text-muted" />
             <span>Chỉnh sửa</span>
@@ -441,7 +483,9 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Số chunks</span>
                   <span className="font-medium text-heading">
-                    {doc.chunk_count ?? allChunks.length}
+                    {isProcessingInBackground && (doc.chunk_count ?? allChunks.length) === 0
+                      ? "—"
+                      : (doc.chunk_count ?? allChunks.length)}
                   </span>
                 </div>
 
@@ -449,7 +493,9 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                 <div className="flex items-center justify-between gap-3">
                   <span className="shrink-0">Số trang</span>
                   <span className="font-medium text-heading">
-                    {doc.total_pages ?? 1} trang
+                    {isProcessingInBackground && (doc.total_pages ?? 0) === 0
+                      ? "—"
+                      : `${doc.total_pages ?? 1} trang`}
                   </span>
                 </div>
 
@@ -553,7 +599,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                 {/* Tab 1: Danh sách Chunks */}
                 <TabsContent value="chunks" className="m-0 focus-visible:outline-none">
                   {allChunks.length === 0 ? (
-                    <div className="py-8 px-4 text-center text-xs text-muted">
+                    <div className="py-10 px-4 text-center text-xs text-muted">
                       {doc.status === DocumentStatus.FAILED ||
                       String(doc.status).toLowerCase() === "failed" ? (
                         <div className="mx-auto max-w-lg rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-left">
@@ -569,6 +615,16 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
                               </p>
                             </div>
                           </div>
+                        </div>
+                      ) : isProcessingInBackground ? (
+                        <div className="mx-auto flex max-w-md flex-col items-center gap-2 py-2">
+                          <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
+                          <p className="text-sm font-medium text-heading">
+                            Đang OCR, phân đoạn và lập chỉ mục...
+                          </p>
+                          <p className="text-xs text-muted leading-relaxed">
+                            Hệ thống đang xử lý tài liệu ở chế độ nền. Trang sẽ tự động cập nhật khi hoàn tất.
+                          </p>
                         </div>
                       ) : (
                         <p>

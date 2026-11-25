@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -16,10 +17,14 @@ class SearchResultItem(BaseModel):
     document_id: UUID = Field(..., description="Parent document identifier")
     title: str = Field(..., description="Document title")
     category_id: UUID | None = Field(default=None, description="Category identifier")
-    page_number: int = Field(..., description="Page number where the chunk appears")
+    page_number: int = Field(..., description="Page number where the chunk starts")
+    page_start: int | None = Field(default=None, description="Starting page number")
+    page_end: int | None = Field(default=None, description="Ending page number")
     chunk_index: int = Field(..., description="Index of the chunk in the document")
     score: float = Field(..., description="Cosine similarity score")
-    content: str = Field(..., description="Text content of the chunk")
+    context: str | None = Field(default=None, description="Hierarchical breadcrumb context")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Structured chunk metadata")
+    content: str = Field(..., description="Clean text content of the chunk")
 
 
 class SearchResponse(BaseModel):
@@ -32,8 +37,12 @@ class CitationSource(BaseModel):
     document_id: UUID
     title: str
     page_number: int
+    page_start: int | None = None
+    page_end: int | None = None
     chunk_index: int
     score: float
+    context: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     snippet: str
 
 

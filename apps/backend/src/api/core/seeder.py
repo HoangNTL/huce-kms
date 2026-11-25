@@ -54,8 +54,7 @@ async def seed_users() -> None:
                 is_active=True,
             )
             session.add(default_admin)
-            logger.info("[SEEDER] Created default admin: 'admin' / 'AdminPassword2026@'")
-            print("  ✓ Created default admin account ('admin' / 'AdminPassword2026@')")
+            logger.info("[SEEDER] Created default admin account ('admin').")
         else:
             logger.debug("[SEEDER] Admin user 'admin' already exists.")
 
@@ -74,8 +73,7 @@ async def seed_users() -> None:
                 is_active=True,
             )
             session.add(default_user)
-            logger.info("[SEEDER] Created demo user: 'user' / 'UserPassword2026@'")
-            print("  ✓ Created demo standard user ('user' / 'UserPassword2026@')")
+            logger.info("[SEEDER] Created demo standard user ('user').")
         else:
             logger.debug("[SEEDER] Standard user 'user' already exists.")
 
@@ -105,13 +103,12 @@ async def seed_categories() -> None:
             if not res.scalar_one_or_none():
                 session.add(Category(name=name, slug=slug, description=desc))
                 created_count += 1
-                logger.info("[SEEDER] Created category: '%s'", name)
-                print(f"  ✓ Created category: '{name}' ({slug})")
+                logger.info("[SEEDER] Created category: '%s' (%s)", name, slug)
 
         try:
             await session.commit()
             if created_count > 0:
-                print(f"  ✓ Successfully seeded {created_count} default categories.")
+                logger.info("[SEEDER] Seeded %d default categories.", created_count)
         except IntegrityError:
             await session.rollback()
             logger.info("[SEEDER] Categories were already committed by a concurrent worker.")
@@ -119,10 +116,10 @@ async def seed_categories() -> None:
 
 async def seed_initial_data() -> None:
     """Run all database seeders sequentially."""
-    print("\n--- Seeding Initial HUCE-KMS Baseline Data ---")
+    logger.debug("[SEEDER] Verifying initial HUCE-KMS baseline data...")
     await seed_users()
     await seed_categories()
-    print("--- Database Seeding Completed Successfully ---\n")
+    logger.debug("[SEEDER] Baseline data verification completed.")
 
 
 if __name__ == "__main__":

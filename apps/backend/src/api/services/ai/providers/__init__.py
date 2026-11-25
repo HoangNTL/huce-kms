@@ -9,6 +9,12 @@ from api.services.ai.providers.generation.openai_compatible import (
     OpenAICompatibleGenerationProvider,
     OpenRouterGenerationProvider,
 )
+from api.services.ai.providers.ocr import (
+    GeminiOCRProvider,
+    GroqOCRProvider,
+    OpenAIVisionOCRProvider,
+    OpenRouterOCRProvider,
+)
 
 __all__ = [
     "GeminiGenerationProvider",
@@ -18,4 +24,8 @@ __all__ = [
     "GeminiEmbeddingProvider",
     "VoyageEmbeddingProvider",
     "JinaEmbeddingProvider",
+    "GeminiOCRProvider",
+    "GroqOCRProvider",
+    "OpenAIVisionOCRProvider",
+    "OpenRouterOCRProvider",
 ]

@@ -1,10 +1,11 @@
 from collections.abc import Sequence
 from uuid import UUID
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.constants.enums import DocumentStatus
+from api.core.database import async_session_factory
 from api.models.document import Document
 from api.repositories.base import BaseRepository
 
@@ -21,6 +22,12 @@ class DocumentRepository(BaseRepository[Document]):
         if doc and not include_deleted and doc.deleted_at is not None:
             return None
         return doc
+
+    async def is_active(self, document_id: UUID) -> bool:
+        """Query PostgreSQL directly to confirm document exists and is not soft-deleted."""
+        stmt = select(Document.id).where(Document.id == document_id, Document.deleted_at.is_(None))
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def get_by_file_hash(self, file_hash: str) -> Document | None:
         stmt = (
@@ -120,3 +127,19 @@ class DocumentRepository(BaseRepository[Document]):
         documents = data_result.scalars().all()
 
         return documents, total
+
+    @classmethod
+    async def recover_interrupted_documents(cls) -> int:
+        """Mark any documents stuck in PROCESSING after a server restart as FAILED."""
+        async with async_session_factory() as session:
+            stmt = (
+                update(Document)
+                .where(Document.status == DocumentStatus.PROCESSING)
+                .values(
+                    status=DocumentStatus.FAILED,
+                    error_message="Quá trình xử lý tài liệu bị gián đoạn do máy chủ khởi động lại. Vui lòng thử xử lý lại.",
+                )
+            )
+            res = await session.execute(stmt)
+            await session.commit()
+            return res.rowcount or 0

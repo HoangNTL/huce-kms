@@ -2,11 +2,43 @@ import re
 import unicodedata
 from typing import Any
 
+from api.services.rag.patterns import (
+    BARE_PAGE_NUMBER_RE,
+    FORM_BLANK_RE,
+    HEADING_LINE_RE,
+    REPEATED_COMMA_RE,
+    STRUCTURAL_LINE_RE,
+    VN_ACCENTED_LOWER,
+    sanitize_pdf_symbols,
+)
+
+# Standalone Vietnamese consonant onsets/codas that are never valid standalone words
+_SYLLABLE_REPAIR_PATTERNS = (
+    re.compile(
+        r"(?<![A-Za-zÀ-ỹ0-9/])(ch|kh|ph|gh|ngh|nh|th|tr|qu|gi|đ)\s+"
+        rf"([{VN_ACCENTED_LOWER}aăâeêioôơuưy][a-zà-ỹ]*)\b"
+    ),
+    re.compile(
+        r"(?<![A-Za-zÀ-ỹ0-9/])([bcdghklmnpqrstvx]|Th|Ch|Ph|Kh|Gh|Ngh|Nh|Tr|Qu|Đ)\s+"
+        rf"([{VN_ACCENTED_LOWER}][a-zà-ỹ]*)\b"
+    ),
+    re.compile(
+        rf"\b([A-Za-zÀ-ỹ]*[{VN_ACCENTED_LOWER}][a-zà-ỹ]*)\s+"
+        r"(ng|nh|ch|[cmnpt])(?![A-Za-zÀ-ỹ.)/])"
+    ),
+)
+
+_DANGLING_CONNECTORS = frozenset({
+    "và", "của", "về", "trong", "cho", "với", "tại", "theo", "bởi", "từ",
+    "đến", "trên", "dưới", "các", "những", "giữa", "hoặc", "như", "nên",
+    "of", "and", "in", "the", "to", "for", "by", "with", "from", "at",
+    "on", "or", "among", "between", "into", "through", "including",
+})
+
 
 class TextCleaner:
     """Pre-processing and text sanitization pipeline for Vietnamese academic documents."""
 
-    # Regex patterns for page numbering and repeated administrative noise
     NOISE_PATTERNS = [
         re.compile(r"^\s*Trang\s+\d+(\s*[/_\\-]\s*\d+)?\s*$", re.IGNORECASE),
         re.compile(r"^\s*-\s*\d+\s*-\s*$"),
@@ -16,118 +48,150 @@ class TextCleaner:
 
     @staticmethod
     def normalize_unicode(text: str) -> str:
-        """Normalize Vietnamese text to canonical pre-composed NFC Unicode."""
+        """Normalize Vietnamese text to canonical NFC Unicode and clean PUA/invisible glyphs."""
         if not text:
             return ""
-        return unicodedata.normalize("NFC", text)
+        return unicodedata.normalize("NFC", sanitize_pdf_symbols(text))
+
+    @staticmethod
+    def repair_broken_spacing(text: str) -> str:
+        """Repair split Vietnamese syllables, stray punctuation, and form dot-fill blanks."""
+        if not text:
+            return ""
+        repaired = FORM_BLANK_RE.sub("...", text)
+        repaired = REPEATED_COMMA_RE.sub(", ", repaired)
+        repaired = re.sub(r"(\d+)\s+/(?=[A-ZÀ-Ỹ]{2,})", r"\1/", repaired)
+        repaired = re.sub(r"\s+([,;:.!?])(?=\s|$|<br>)", r"\1", repaired)
+        for _ in range(2):
+            for pat in _SYLLABLE_REPAIR_PATTERNS:
+                repaired = pat.sub(r"\1\2", repaired)
+        return re.sub(r"(?<!\.)\.\.(?!\.)", ".", repaired)
 
     @classmethod
-    def clean_page_text(cls, text: str) -> tuple[str, list[str]]:
-        """
-        Sanitize raw page text:
-        1. NFC Unicode normalization.
-        2. Identify and filter page noise / pagination lines.
-        3. De-hyphenate broken lines and redundant whitespace.
-        Returns (cleaned_text, removed_noise_list).
-        """
-        if not text:
-            return "", []
+    def _should_merge_soft_break(cls, prev_line: str, curr_line: str) -> bool:
+        """Return True when curr_line is a soft-wrapped continuation of prev_line."""
+        if not prev_line or not curr_line or prev_line.startswith("|") or curr_line.startswith("|"):
+            return False
+        if STRUCTURAL_LINE_RE.match(curr_line) or HEADING_LINE_RE.match(prev_line):
+            return False
+        if prev_line.endswith((".", "!", "?", ":")):
+            return False
+        if curr_line[0].islower():
+            return True
+        if curr_line.isupper() and len(curr_line) > 4:
+            return False
+        if prev_line.endswith((",", "(")):
+            return True
+        return prev_line.rstrip(".,;:()").rsplit(None, 1)[-1].lower() in _DANGLING_CONNECTORS
 
-        # 1. Normalize Unicode
-        normalized = cls.normalize_unicode(text)
-        normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
-
-        lines = normalized.split("\n")
-        retained_lines: list[str] = []
-        removed_noise: list[str] = []
-
-        # Find first and last non-empty line indices to safely detect standalone page numbers (header/footer)
-        non_empty_indices = [i for i, l in enumerate(lines) if l.strip()]
-        header_footer_indices: set[int] = set()
-        if non_empty_indices:
-            first_idx = non_empty_indices[0]
-            if re.match(r"^\s*\d{1,4}\s*$", lines[first_idx]):
-                header_footer_indices.add(first_idx)
-            last_idx = non_empty_indices[-1]
-            if last_idx != first_idx and re.match(r"^\s*\d{1,4}\s*$", lines[last_idx]):
-                header_footer_indices.add(last_idx)
-
-        # 2. Filter noise line by line
+    @classmethod
+    def _filter_page_noise(cls, lines: list[str]) -> tuple[list[str], list[str]]:
+        """Remove edge page numbers and pagination noise lines."""
+        non_empty = [i for i, l in enumerate(lines) if l.strip()]
+        edge_num_indices = {
+            idx
+            for idx in (non_empty[:1] + non_empty[-1:])
+            if BARE_PAGE_NUMBER_RE.match(lines[idx])
+        }
+        retained: list[str] = []
+        removed: list[str] = []
         for idx, line in enumerate(lines):
             stripped = line.strip()
             if not stripped:
-                retained_lines.append("")
-                continue
-
-            is_noise = (
-                idx in header_footer_indices
-                or any(pattern.match(stripped) for pattern in cls.NOISE_PATTERNS)
-            )
-            if is_noise:
-                removed_noise.append(stripped)
+                retained.append("")
+            elif idx in edge_num_indices or any(p.match(stripped) for p in cls.NOISE_PATTERNS):
+                removed.append(stripped)
             else:
-                retained_lines.append(stripped)
+                retained.append(stripped)
+        return retained, removed
 
-        # 3. Rebuild text and perform de-hyphenation and whitespace cleanup
-        joined = "\n".join(retained_lines)
+    @classmethod
+    def clean_page_text(cls, text: str) -> tuple[str, list[str]]:
+        """Sanitize raw page text: NFC normalize, strip noise, de-hyphenate, and repair spacing."""
+        if not text:
+            return "", []
 
-        # Handle hyphen at end of line (e.g. "nghiên-\ncứu" -> "nghiên cứu")
-        joined = re.sub(r"(\w+)-\n(\w+)", r"\1\2", joined)
+        normalized = cls.normalize_unicode(text).replace("\r\n", "\n").replace("\r", "\n")
+        retained, removed_noise = cls._filter_page_noise(normalized.split("\n"))
+        joined = "\n".join(retained)
+        joined = re.sub(r"([A-Z0-9]+)-\n([A-Z0-9]+)", r"\1-\2", joined)
+        joined = re.sub(r"([a-zà-ỹ]{2,})-\n([a-zà-ỹ]{2,})", r"\1\2", joined)
+        # Attach standalone PDF bullet lines (e.g. "-\nItem text") onto their following item line
+        joined = re.sub(r"(?m)^([-•*–])[ \t]*\n+(?![|\-*•–\s])", r"\1 ", joined)
 
-        # Handle soft break: join non-empty line ending without sentence terminators
-        # to a subsequent line that begins with a Unicode lowercase character.
-        raw_split_lines = joined.split("\n")
-        merged_lines: list[str] = []
+        merged: list[str] = []
+        for line in joined.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                merged.append("")
+            elif merged and merged[-1] and cls._should_merge_soft_break(merged[-1], stripped):
+                merged[-1] = f"{merged[-1]} {stripped}"
+            else:
+                merged.append(stripped)
 
-        for line in raw_split_lines:
-            stripped_line = line.strip()
-            if not stripped_line:
-                merged_lines.append("")
+        collapsed = re.sub(r"\n{3,}", "\n\n", "\n".join(merged))
+        cleaned_lines = []
+        for l in collapsed.split("\n"):
+            cleaned_line = cls.repair_broken_spacing(re.sub(r"[ \t]+", " ", l).strip())
+            if cleaned_line and re.fullmatch(r"\.{3,}", cleaned_line):
                 continue
+            cleaned_lines.append(cleaned_line)
+        return "\n".join(cleaned_lines).strip(), removed_noise
 
-            if merged_lines and merged_lines[-1] != "":
-                prev_line = merged_lines[-1]
-                prev_ends_softly = prev_line[-1] not in ".!?:"
-                curr_starts_lower = stripped_line[0].islower()
+    @classmethod
+    def _strip_repeated_headers_footers(cls, pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Remove identical running headers/footers repeated across >= half of pages (min 3 pages)."""
+        if len(pages) < 3:
+            return pages
 
-                if prev_ends_softly and curr_starts_lower:
-                    merged_lines[-1] = f"{prev_line} {stripped_line}"
-                    continue
+        def _sig(line: str) -> str:
+            return re.sub(r"\d+", "#", line.strip())
 
-            merged_lines.append(stripped_line)
+        min_repeat = max(3, (len(pages) + 1) // 2)
+        top_counts: dict[str, int] = {}
+        bottom_counts: dict[str, int] = {}
+        for page in pages:
+            lines = [l for l in str(page["cleaned_text"]).split("\n") if l.strip()]
+            if not lines:
+                continue
+            for counts, edge in ((top_counts, lines[0]), (bottom_counts, lines[-1])):
+                if len(edge) <= 120 and not edge.startswith("|") and not HEADING_LINE_RE.match(edge):
+                    counts[_sig(edge)] = counts.get(_sig(edge), 0) + 1
 
-        joined = "\n".join(merged_lines)
+        rep_tops = {s for s, c in top_counts.items() if c >= min_repeat}
+        rep_bottoms = {s for s, c in bottom_counts.items() if c >= min_repeat}
+        if not rep_tops and not rep_bottoms:
+            return pages
 
-        # Collapse excessive blank lines (more than 2 consecutive newlines)
-        joined = re.sub(r"\n{3,}", "\n\n", joined)
-
-        # Collapse horizontal whitespace
-        cleaned_lines = [re.sub(r"[ \t]+", " ", l).strip() for l in joined.split("\n")]
-        final_text = "\n".join(cleaned_lines).strip()
-
-        return final_text, removed_noise
+        for page in pages:
+            raw_lines = str(page["cleaned_text"]).split("\n")
+            non_empty = [i for i, l in enumerate(raw_lines) if l.strip()]
+            if not non_empty:
+                continue
+            drops = {
+                i
+                for i, sigs in ((non_empty[0], rep_tops), (non_empty[-1], rep_bottoms))
+                if _sig(raw_lines[i]) in sigs
+            }
+            if drops:
+                page["removed_noise"].extend(raw_lines[i].strip() for i in sorted(drops))
+                updated = "\n".join(l for i, l in enumerate(raw_lines) if i not in drops).strip()
+                page["cleaned_text"] = updated
+                page["char_count"] = len(updated)
+        return pages
 
     @classmethod
     def clean_pages(cls, pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """
-        Clean a list of extracted page dictionaries.
-        Each input dict should have 'page_number' and 'text'.
-        Returns a structured list with 'page_number', 'raw_text', 'cleaned_text', and 'removed_noise'.
-        """
-        cleaned_results: list[dict[str, Any]] = []
-
+        """Clean extracted page dicts and strip repeated cross-page headers/footers."""
+        cleaned_results = []
         for p in pages:
             raw_text = str(p.get("text", ""))
-            page_number = int(p.get("page_number", 1))
-
             cleaned_text, noise = cls.clean_page_text(raw_text)
-
             cleaned_results.append({
-                "page_number": page_number,
+                "page_number": int(p.get("page_number", 1)),
                 "raw_text": raw_text,
                 "cleaned_text": cleaned_text,
                 "char_count": len(cleaned_text),
                 "removed_noise": noise,
             })
-
-        return cleaned_results
+        return cls._strip_repeated_headers_footers(cleaned_results)

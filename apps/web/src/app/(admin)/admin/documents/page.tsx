@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog"
 import { Empty, EmptyHeader, EmptyTitle, EmptyMedia } from "@/components/ui/empty"
 import {
+  DocumentStatus,
   DocumentStatusBadge,
   DocumentUploadModal,
   DocumentEditModal,
@@ -79,6 +80,7 @@ export default function AdminDocumentsPage() {
 
   // Edit Modal State
   const [editTarget, setEditTarget] = React.useState<DocumentMetadata | null>(null)
+  const [processingId, setProcessingId] = React.useState<string | null>(null)
 
   const categoryOptions: Record<string, string> = React.useMemo(() => {
     const map: Record<string, string> = { ALL: "Tất cả danh mục" }
@@ -134,6 +136,40 @@ export default function AdminDocumentsPage() {
       ignore = true
     }
   }, [currentPage, pageSize, searchTerm, categoryFilter, statusFilter, refreshKey])
+
+  // Poll gently every 3s while any visible document is still processing/pending
+  const hasInFlightDocs = React.useMemo(
+    () =>
+      documents.some(
+        (d) => d.status === DocumentStatus.PROCESSING || d.status === DocumentStatus.PENDING
+      ),
+    [documents]
+  )
+
+  React.useEffect(() => {
+    if (!hasInFlightDocs) return
+    const timer = setInterval(() => {
+      setRefreshKey((k) => k + 1)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [hasInFlightDocs])
+
+  const handleProcessDocument = async (doc: DocumentMetadata) => {
+    setProcessingId(String(doc.id))
+    try {
+      await documentService.processDocument(doc.id)
+      toast.info("Đang xử lý tài liệu", {
+        description: `Tài liệu "${doc.title}" đã được đưa vào hàng đợi lập chỉ mục nền.`,
+      })
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast.error("Không thể xử lý tài liệu", {
+        description: err instanceof Error ? err.message : "Vui lòng thử lại sau.",
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return
@@ -354,26 +390,57 @@ export default function AdminDocumentsPage() {
                           {formatBytes(doc.file_size)}
                         </TableCell>
 
-                        {/* Column Số chunks: Plain count */}
+                        {/* Column Số chunks */}
                         <TableCell className="text-xs font-medium text-slate-600">
-                          {doc.chunk_count ?? 0}
+                          {(doc.status === DocumentStatus.PROCESSING ||
+                            doc.status === DocumentStatus.PENDING) &&
+                          (doc.chunk_count ?? 0) === 0 ? (
+                            <span className="text-muted">—</span>
+                          ) : (
+                            doc.chunk_count ?? 0
+                          )}
                         </TableCell>
 
                         {/* Column Trạng thái */}
                         <TableCell>
-                          <DocumentStatusBadge status={doc.status} />
+                          <div
+                            className="inline-flex items-center gap-1.5"
+                            title={doc.status === DocumentStatus.FAILED && doc.error_message ? doc.error_message : undefined}
+                          >
+                            <DocumentStatusBadge status={doc.status} />
+                          </div>
                         </TableCell>
 
-                        {/* Column Thao tác: Chỉnh sửa, Xóa */}
+                        {/* Column Thao tác: Xử lý lại, Chỉnh sửa, Xóa */}
                         <TableCell className="text-right pr-5">
                           <div className="flex items-center justify-end gap-1">
+                            {(doc.status === DocumentStatus.FAILED ||
+                              doc.status === DocumentStatus.UPLOADED ||
+                              doc.status === DocumentStatus.PENDING) && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => handleProcessDocument(doc)}
+                                disabled={processingId === String(doc.id)}
+                                className="h-7 w-7 rounded-lg text-brand-primary hover:bg-brand-primary/10"
+                                title={doc.status === DocumentStatus.FAILED ? "Xử lý lại" : "Lập chỉ mục"}
+                                aria-label={doc.status === DocumentStatus.FAILED ? "Xử lý lại" : "Lập chỉ mục"}
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             {/* Nút Chỉnh sửa */}
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => setEditTarget(doc)}
-                              className="h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                              title="Chỉnh sửa tài liệu"
+                              disabled={doc.status === DocumentStatus.PROCESSING}
+                              className="h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40"
+                              title={
+                                doc.status === DocumentStatus.PROCESSING
+                                  ? "Không thể chỉnh sửa khi tài liệu đang xử lý"
+                                  : "Chỉnh sửa tài liệu"
+                              }
                               aria-label="Chỉnh sửa tài liệu"
                             >
                               <Pencil className="h-3.5 w-3.5" />

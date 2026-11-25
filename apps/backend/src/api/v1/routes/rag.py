@@ -28,11 +28,16 @@ def get_embedding_manager() -> EmbeddingManager:
     return EmbeddingManager()
 
 
+@lru_cache(maxsize=1)
+def get_vector_store() -> QdrantVectorStore:
+    return QdrantVectorStore()
+
+
 def get_rag_service(
     embedder: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
     generation_manager: Annotated[GenerationManager, Depends(get_generation_manager)],
+    vector_store: Annotated[QdrantVectorStore, Depends(get_vector_store)],
 ) -> RAGService:
-    vector_store = QdrantVectorStore()
     return RAGService(
         embedder=embedder,
         vector_store=vector_store,

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { DocumentStatus } from "../types"
 
@@ -23,7 +24,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<
   [DocumentStatus.PROCESSING]: {
     label: "Đang xử lý",
     variant: "secondary",
-    className: "animate-pulse border-warning/30 bg-warning/15 text-warning",
+    className: "border-warning/30 bg-warning/15 text-warning",
   },
   [DocumentStatus.INDEXED]: {
     label: "Đã lập chỉ mục",
@@ -42,6 +43,9 @@ export function DocumentStatusBadge({ status }: DocumentStatusBadgeProps) {
 
   return (
     <Badge variant={config.variant} className={config.className}>
+      {status === DocumentStatus.PROCESSING && (
+        <Loader2 data-icon="inline-start" className="animate-spin" />
+      )}
       {config.label}
     </Badge>
   )

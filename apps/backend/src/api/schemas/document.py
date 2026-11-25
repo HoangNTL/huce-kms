@@ -12,11 +12,16 @@ class DocumentChunkResponse(BaseModel):
     document_id: UUID
     chunk_index: int
     content: str
+    context: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict, validation_alias="chunk_metadata")
     page_number: int
+    page_start: int = 1
+    page_end: int = 1
     token_count: int
+    content_hash: str | None = None
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class DocumentBase(BaseModel):

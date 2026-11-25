@@ -76,7 +76,12 @@ class QdrantVectorStore:
                     "title": chunk.get("title", ""),
                     "category_id": str(chunk["category_id"]) if chunk.get("category_id") else None,
                     "chunk_index": chunk["chunk_index"],
-                    "page_number": chunk["page_number"],
+                    "page_number": chunk.get("page_start", chunk.get("page_number", 1)),
+                    "page_start": chunk.get("page_start", chunk.get("page_number", 1)),
+                    "page_end": chunk.get("page_end", chunk.get("page_number", 1)),
+                    "context": chunk.get("context", ""),
+                    "metadata": chunk.get("metadata", {}),
+                    "content_hash": chunk.get("content_hash"),
                     "content": chunk["content"],
                 },
             )
@@ -145,21 +150,31 @@ class QdrantVectorStore:
         query_vector: list[float],
         limit: int = 5,
         category_id: Any | None = None,
+        metadata_filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Search similar document chunks by vector similarity."""
+        """Search similar document chunks by vector similarity and optional metadata filters."""
         await self.ensure_collection()
         client = self.get_client()
 
-        query_filter = None
+        must_conditions: list[FieldCondition] = []
         if category_id is not None:
-            query_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="category_id",
-                        match=MatchValue(value=str(category_id)),
-                    )
-                ]
+            must_conditions.append(
+                FieldCondition(
+                    key="category_id",
+                    match=MatchValue(value=str(category_id)),
+                )
             )
+        if metadata_filters:
+            for meta_key, meta_val in metadata_filters.items():
+                if meta_val is not None:
+                    must_conditions.append(
+                        FieldCondition(
+                            key=f"metadata.{meta_key}",
+                            match=MatchValue(value=meta_val),
+                        )
+                    )
+
+        query_filter = Filter(must=must_conditions) if must_conditions else None
 
         results = await client.query_points(
             collection_name=self.collection_name,

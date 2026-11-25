@@ -183,9 +183,13 @@ class TestDocumentUpdateService(unittest.TestCase):
                 id=chunk_id,
                 chunk_index=0,
                 content="Nội dung điều 1 về đào tạo.",
+                context="Chương I > Điều 1",
+                chunk_metadata={"article": "Điều 1"},
                 token_count=10,
                 page_number=1,
-                heading_path="Chương I > Điều 1",
+                page_start=1,
+                page_end=1,
+                content_hash="chunkhash1",
             )
             mock_doc = MagicMock(
                 id=doc_id,
@@ -215,9 +219,59 @@ class TestDocumentUpdateService(unittest.TestCase):
             restored = await service.restore_document(doc_id)
 
             doc_repo.restore.assert_awaited_once_with(mock_doc)
-            embedder.embed_texts.assert_awaited_once_with(["Nội dung điều 1 về đào tạo."])
+            embedder.embed_texts.assert_awaited_once_with(["Chương I > Điều 1\nNội dung điều 1 về đào tạo."])
             vector_store.upsert_chunks.assert_awaited_once()
+            upsert_args = vector_store.upsert_chunks.call_args.args
+            self.assertEqual(len(upsert_args), 2)
+            self.assertEqual(upsert_args[0][0]["context"], "Chương I > Điều 1")
+            self.assertEqual(upsert_args[0][0]["metadata"], {"article": "Điều 1"})
+            self.assertEqual(upsert_args[0][0]["content_hash"], "chunkhash1")
+            self.assertEqual(upsert_args[1], [[0.05] * 768])
             self.assertEqual(restored.id, doc_id)
+        asyncio.run(_test())
+
+    def test_upload_and_process_document_background(self):
+        async def _test():
+            from api.models.enums import DocumentStatus
+
+            doc_repo = AsyncMock()
+            chunk_repo = AsyncMock()
+            category_repo = AsyncMock()
+            embedder = AsyncMock()
+            vector_store = AsyncMock()
+            storage_service = AsyncMock()
+
+            now = datetime.now(timezone.utc)
+            doc_repo.get_by_file_hash.return_value = None
+            storage_service.upload_file.return_value = "documents/upload/2026/11/doc/sample.pdf"
+            storage_service.get_presigned_download_url.return_value = "https://example.com/sample.pdf"
+
+            def _create_doc(doc):
+                doc.created_at = now
+                doc.updated_at = now
+                return doc
+
+            doc_repo.create.side_effect = _create_doc
+
+            service = DocumentService(
+                doc_repo,
+                chunk_repo,
+                category_repo,
+                embedder,
+                vector_store,
+                storage_service=storage_service,
+            )
+            resp = await service.upload_and_process_document(
+                file_bytes=b"%PDF-1.4 test content",
+                file_name="sample.pdf",
+                title="Quy chế đào tạo",
+                run_in_background=True,
+            )
+
+            self.assertEqual(resp.status, DocumentStatus.PROCESSING.value)
+            doc_repo.create.assert_awaited_once()
+            embedder.generate_embeddings_batch.assert_not_awaited()
+            vector_store.upsert_chunks.assert_not_awaited()
         asyncio.run(_test())
 
 

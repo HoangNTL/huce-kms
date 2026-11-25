@@ -140,18 +140,16 @@ class StorageService:
 
                 return await asyncio.to_thread(_get)
             except S3Error as s3e:
-                logger.debug("Object '%s' not in MinIO: %s. Checking local fallback...", clean_object_name, s3e)
+                detail = "NoSuchKey" if s3e.code == "NoSuchKey" else s3e
+                logger.debug("Object '%s' not in MinIO (%s). Checking local fallback...", clean_object_name, detail)
             except Exception as e:
                 logger.warning("MinIO get_object error for '%s': %s. Checking local fallback...", clean_object_name, e)
 
-        # 2. Try local filesystem (check relative to upload dir, or absolute if legacy)
-        local_target = self.local_upload_dir / clean_object_name
-        if local_target.exists():
+        # 2. Try local filesystem strictly scoped inside local_upload_dir
+        upload_root = self.local_upload_dir.resolve()
+        local_target = (upload_root / clean_object_name).resolve()
+        if local_target.is_relative_to(upload_root) and local_target.is_file():
             return await asyncio.to_thread(local_target.read_bytes)
-
-        raw_path = Path(object_name)
-        if raw_path.exists():
-            return await asyncio.to_thread(raw_path.read_bytes)
 
         raise FileNotFoundError(f"File or object '{object_name}' not found in MinIO or local storage.")
 

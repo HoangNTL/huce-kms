@@ -217,8 +217,11 @@ def run_pipeline(
             )
             query_vector = res_q.embedding.values
 
-            # Embed chunks
-            chunk_texts = [c["content"] for c in chunks_raw]
+            # Embed chunks using contextualized header + content (matching production indexing)
+            chunk_texts = [
+                f"{c['context']}\n{c['content']}".strip() if c.get("context") else c["content"]
+                for c in chunks_raw
+            ]
             res_c = client.models.embed_content(
                 model=settings.EMBEDDING_MODEL_NAME,
                 contents=chunk_texts,

@@ -127,8 +127,8 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
         selectedCategoryId || undefined
       )
 
-      toast.success("Tải lên tài liệu thành công!", {
-        description: `Tài liệu "${doc.title || file.name}" đã được nạp và phân mảnh vào hệ thống RAG.`,
+      toast.success("Đã tải lên tài liệu!", {
+        description: `Tài liệu "${doc.title || file.name}" đã được lưu và đang lập chỉ mục ở chế độ nền.`,
       })
       setFile(null)
       setTitle("")
@@ -163,21 +163,7 @@ export function DocumentUploadModal({ open, onOpenChange, onSuccess }: DocumentU
 
         <div className="space-y-4 py-2 min-w-0">
           <div className="space-y-1.5 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="doc-title" className="text-xs shrink-0">Tên tài liệu</Label>
-              {file && isTitleManuallyEdited && title !== cleanFileName(file.name) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTitle(cleanFileName(file.name))
-                    setIsTitleManuallyEdited(false)
-                  }}
-                  className="shrink-0 cursor-pointer text-2xs text-brand-primary hover:underline"
-                >
-                  Đặt lại theo tên tệp
-                </button>
-              )}
-            </div>
+            <Label htmlFor="doc-title" className="text-xs">Tên tài liệu</Label>
             <Input
               id="doc-title"
               placeholder="Nhập tên tài liệu..."

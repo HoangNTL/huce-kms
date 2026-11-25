@@ -1,6 +1,7 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
-from sqlalchemy import ForeignKey, Index, Integer, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base, TimestampMixin, uuid7
@@ -30,8 +31,19 @@ class DocumentChunk(Base, TimestampMixin):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chunk_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+        nullable=False,
+    )
     page_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    page_start: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
+    page_end: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     # Relationships
     document: Mapped["Document"] = relationship(back_populates="chunks")
@@ -42,4 +54,4 @@ class DocumentChunk(Base, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<DocumentChunk id='{self.id}' doc_id={self.document_id} idx={self.chunk_index} p={self.page_number}>"
+        return f"<DocumentChunk id='{self.id}' doc_id={self.document_id} idx={self.chunk_index} p={self.page_start}-{self.page_end}>"

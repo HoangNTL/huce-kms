@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Path, Query, Response, Uploa
 from fastapi.responses import RedirectResponse
 
 from api.core.dependencies import AdminUserDep, CurrentUserDep, DatabaseDep, PaginationDep
-from api.core.exceptions import EntityNotFoundException
+from api.core.exceptions import BadRequestException, EntityNotFoundException
 from api.repositories.category import CategoryRepository
 from api.repositories.document import DocumentRepository
 from api.repositories.document_chunk import DocumentChunkRepository
@@ -17,10 +17,10 @@ from api.schemas.document import (
     DocumentUpdate,
 )
 from api.services.ai.managers.embedding_manager import EmbeddingManager
-from api.services.document import DocumentService
+from api.services.document import DocumentService, schedule_document_indexing
 from api.services.rag.vector_store import QdrantVectorStore
 from api.services.storage import StorageService, get_storage_service
-from api.v1.routes.rag import get_embedding_manager
+from api.v1.routes.rag import get_embedding_manager, get_vector_store
 
 router = APIRouter()
 
@@ -28,12 +28,12 @@ router = APIRouter()
 def get_document_service(
     db: DatabaseDep,
     embedder: Annotated[EmbeddingManager, Depends(get_embedding_manager)],
+    vector_store: Annotated[QdrantVectorStore, Depends(get_vector_store)],
     storage_service: Annotated[StorageService, Depends(get_storage_service)],
 ) -> DocumentService:
     document_repo = DocumentRepository(db)
     chunk_repo = DocumentChunkRepository(db)
     category_repo = CategoryRepository(db)
-    vector_store = QdrantVectorStore()
     return DocumentService(
         document_repo=document_repo,
         chunk_repo=chunk_repo,
@@ -50,8 +50,8 @@ DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
 @router.post(
     "/upload",
     response_model=BaseResponse[DocumentResponse],
-    status_code=status.HTTP_201_CREATED,
-    summary="Upload and ingest a document into RAG pipeline (PDF, TXT, MD)",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload a document and queue background RAG indexing (PDF, TXT, MD)",
 )
 async def upload_document(
     file: UploadFile = File(..., description="Document file (.pdf, .txt, .md)"),
@@ -59,6 +59,7 @@ async def upload_document(
     category_id: UUID | None = Form(None, description="Category identifier"),
     chunk_strategy: str = Form("legal_structural", description="Chunking strategy: 'legal_structural' or 'recursive'"),
     current_user: CurrentUserDep = None,
+    db: DatabaseDep = None,
     service: DocumentServiceDep = None,
 ):
     file_bytes = await file.read()
@@ -72,11 +73,14 @@ async def upload_document(
         category_id=category_id,
         created_by_id=current_user.id if current_user else None,
         chunk_strategy=chunk_strategy,
+        run_in_background=True,
     )
+    await db.commit()
+    schedule_document_indexing(document_id=document.id, chunk_strategy=chunk_strategy)
 
     return BaseResponse(
-        code="DOCUMENT_INDEXED",
-        message="Document uploaded, parsed, and vector indexed successfully.",
+        code="DOCUMENT_QUEUED",
+        message="Document uploaded and queued for background processing.",
         data=document,
     )
 
@@ -128,10 +132,17 @@ async def get_raw_document_file(
     object_key: str,
     storage_service: Annotated[StorageService, Depends(get_storage_service)],
 ):
+    normalized_key = object_key.lstrip("/").replace("\\", "/")
+    if (
+        not normalized_key.startswith("documents/")
+        or ".." in normalized_key.split("/")
+    ):
+        raise BadRequestException(message="Invalid document storage key.")
+
     try:
-        file_bytes = await storage_service.get_file(object_key)
+        file_bytes = await storage_service.get_file(normalized_key)
     except FileNotFoundError:
-        raise EntityNotFoundException(entity_name="File", entity_id=object_key)
+        raise EntityNotFoundException(entity_name="File", entity_id=normalized_key)
 
     filename = FilePath(object_key).name
     suffix = FilePath(object_key).suffix.lower()
@@ -187,18 +198,22 @@ async def update_document(
 @router.post(
     "/{document_id}/process",
     response_model=BaseResponse[DocumentResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Process and index an uploaded draft document into RAG (Admin only)",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Queue background processing and indexing for an uploaded/failed document (Admin only)",
 )
 async def process_document(
     document_id: Annotated[UUID, Path(description="Document unique identifier")],
     admin_user: AdminUserDep,
+    db: DatabaseDep,
     service: DocumentServiceDep,
 ):
-    processed = await service.process_document(document_id)
+    queued = await service.process_document(document_id, run_in_background=True)
+    await db.commit()
+    schedule_document_indexing(document_id=document_id)
     return BaseResponse(
-        message="Document processed and indexed into RAG successfully.",
-        data=processed,
+        code="DOCUMENT_QUEUED",
+        message="Document queued for background RAG processing.",
+        data=queued,
     )
 
 

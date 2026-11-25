@@ -61,8 +61,13 @@ export interface DocumentChunk {
   document_id: string
   chunk_index: number
   content: string
+  context?: string | null
+  metadata?: Record<string, unknown>
   token_count: number
   page_number: number
+  page_start?: number
+  page_end?: number
+  content_hash?: string | null
   created_at?: string
 }
 

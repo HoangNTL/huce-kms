@@ -34,8 +34,8 @@ class RequestLifecycleMiddleware(BaseHTTPMiddleware):
         response.headers["X-Process-Time"] = f"{process_time_ms:.2f}ms"
         response.headers["X-Request-ID"] = request_id
 
-        # 5. Emit access log only for business endpoints
-        if request.url.path not in self.EXCLUDED_LOG_PATHS:
+        # 5. Emit access log only for business requests (skip CORS preflight OPTIONS and health probes)
+        if request.method != "OPTIONS" and request.url.path not in self.EXCLUDED_LOG_PATHS:
             logger.info(
                 "[%s] %s %s -> Status: %d (%.2fms)",
                 request_id,

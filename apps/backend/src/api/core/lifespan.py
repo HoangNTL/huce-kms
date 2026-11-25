@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        logger.info("[STARTUP] Database schema verified.")
     except Exception as e:
         logger.error("[STARTUP] Database schema initialization failed: %s", e)
         raise
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         from api.services.storage import get_storage_service
         await get_storage_service().ensure_bucket_exists()
+        logger.info("[STARTUP] Object storage ready (backend=%s).", settings.STORAGE_BACKEND)
     except Exception as e:
         logger.warning("[STARTUP] Storage service initialization check: %s", e)
 
@@ -45,15 +47,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("[STARTUP] Interrupted crawl sessions recovery: %s", e)
 
+    # Recover any documents left in PROCESSING state from previous process shutdown
+    try:
+        from api.repositories.document import DocumentRepository
+        recovered_docs = await DocumentRepository.recover_interrupted_documents()
+        if recovered_docs > 0:
+            logger.info("[STARTUP] Recovered %d interrupted document(s).", recovered_docs)
+    except Exception as e:
+        logger.warning("[STARTUP] Interrupted documents recovery: %s", e)
+
     app.state.is_healthy = True
+    logger.info("[STARTUP] %s ready (env=%s, debug=%s).", settings.PROJECT_NAME, settings.ENVIRONMENT, settings.DEBUG)
 
     # Yield control to FastAPI request handling
     yield
 
     # 2. Shutdown phase
     app.state.is_healthy = False
+    try:
+        from api.v1.routes.rag import get_vector_store
+        await get_vector_store().close()
+    except Exception:
+        pass
     await engine.dispose()
-
-    # 2. Shutdown phase
-    app.state.is_healthy = False
-    await engine.dispose()
+    logger.info("[SHUTDOWN] Database engine and Qdrant client disposed.")

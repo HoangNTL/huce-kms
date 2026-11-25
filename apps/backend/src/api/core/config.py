@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # Database Configuration (Docker PostgreSQL by default)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/huce_kms"
+    SQL_ECHO: bool = False  # Set true only when debugging raw SQL queries
     AUTO_SEED: bool = True  # Automatically seed default admin and categories on startup in development
 
     # Qdrant Vector DB Configuration
@@ -45,6 +46,15 @@ class Settings(BaseSettings):
     GENERATION_MAX_RETRIES: int = 2
     GENERATION_TIMEOUT: float = 30.0
     PROVIDER_COOLDOWN_SECONDS: int = 900
+
+    # Vision OCR Multi-Provider Configuration
+    OCR_PROVIDERS: str | list[str] = ["gemini", "groq", "openrouter"]
+    OCR_GEMINI_MODEL: str | None = "gemini-3.5-flash-lite"
+    OCR_GEMINI_FALLBACK_MODEL: str | None = "gemini-3.1-flash-lite"
+    OCR_GROQ_MODEL: str = "qwen/qwen3.8-27b"
+    OCR_OPENROUTER_MODEL: str = "openrouter/free"
+    OCR_MAX_CONCURRENCY: int = 2
+    OCR_MAX_RETRIES: int = 3
 
     # Groq Provider Settings
     GROQ_API_KEY: str | None = None
@@ -71,8 +81,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: Path = BACKEND_DIR / "uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
     ALLOWED_DOCUMENT_EXTENSIONS: list[str] = [".pdf", ".txt", ".md"]
-    CHUNK_SIZE: int = 800
-    CHUNK_OVERLAP: int = 150
+    CHUNK_SIZE: int = 1600
+    CHUNK_OVERLAP: int = 200
 
     # Object Storage (MinIO / S3 compatible)
     STORAGE_BACKEND: str = "minio"  # "minio" or "local"
@@ -121,7 +131,7 @@ class Settings(BaseSettings):
             return value.strip().lower() in ("true", "1", "yes", "on", "debug")
         return bool(value)
 
-    @field_validator("GENERATION_PROVIDERS", mode="before")
+    @field_validator("GENERATION_PROVIDERS", "OCR_PROVIDERS", mode="before")
     @classmethod
     def parse_generation_providers(cls, value: Any) -> list[str]:
         """Support comma-separated string, JSON array, or list for GENERATION_PROVIDERS in .env."""
@@ -153,6 +163,8 @@ class Settings(BaseSettings):
         "OPENROUTER_API_KEY",
         "VOYAGE_API_KEY",
         "JINA_API_KEY",
+        "OCR_GEMINI_MODEL",
+        "OCR_GEMINI_FALLBACK_MODEL",
         mode="before",
     )
     @classmethod
