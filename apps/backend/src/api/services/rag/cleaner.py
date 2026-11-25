@@ -131,34 +131,3 @@ class TextCleaner:
             })
 
         return cleaned_results
-
-    @classmethod
-    def extract_and_clean_preview(cls, file_bytes: bytes, file_name: str) -> "ExtractPreviewResponse":
-        """Parse file bytes, apply cleaning pipeline, and generate structured preview response."""
-        from api.schemas.rag_preview import ExtractPreviewResponse, PageExtractItem
-        from api.services.rag.parser import DocumentParser
-
-        raw_pages = DocumentParser.parse(file_bytes, file_name)
-        cleaned_pages = cls.clean_pages(raw_pages)
-
-        total_raw_chars = sum(len(str(p.get("text", ""))) for p in raw_pages)
-        total_cleaned_chars = sum(p["char_count"] for p in cleaned_pages)
-
-        page_items = [
-            PageExtractItem(
-                page_number=p["page_number"],
-                raw_text=p["raw_text"],
-                cleaned_text=p["cleaned_text"],
-                removed_noise=p["removed_noise"],
-                char_count=p["char_count"],
-            )
-            for p in cleaned_pages
-        ]
-
-        return ExtractPreviewResponse(
-            file_name=file_name,
-            total_pages=len(cleaned_pages),
-            total_raw_chars=total_raw_chars,
-            total_cleaned_chars=total_cleaned_chars,
-            pages=page_items,
-        )
